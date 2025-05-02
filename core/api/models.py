@@ -21,6 +21,7 @@ class Doc(models.Model):
     # Use JSONField to store the Delta JSON data from Flutter Quill.
     content = models.JSONField(blank=True, null=True)
     owner = models.ForeignKey(CustomUser, on_delete=models.CASCADE, null=True, blank=True)  # Link to CustomUser
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='subpages')  # Self-reference for parent-child relationship
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

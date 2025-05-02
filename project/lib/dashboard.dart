@@ -11,6 +11,7 @@ import 'package:project/services/local_storage.dart';
 import 'package:project/services/user_service.dart'; // Import UserService
 import 'package:project/personalScreen/content_page.dart';
 import 'package:project/providers/pages_provider.dart';
+import 'package:project/providers/notification_provider.dart';
 import 'package:project/services/diary_service.dart';
 import 'package:project/personalScreen/newPages/Openned_diary.dart';
 import 'package:project/personalScreen/diary_page.dart';
@@ -280,9 +281,18 @@ Future<void> _logout() async {
     _pages = [];  // Clear cached pages or session data
   });
 
-  // Clear in-memory data using provider
+  // Clear in-memory data using providers
   Provider.of<PagesProvider>(context, listen: false).clearPages();
   print('✅ Cleared pages from PagesProvider');
+
+  // Clear notifications
+  try {
+    final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+    await notificationProvider.clearNotifications();
+    print('✅ Cleared notifications from NotificationProvider');
+  } catch (e) {
+    print('⚠️ Error clearing notifications: $e');
+  }
 
   // Check if token was cleared from LocalStorage
   String? storedToken = await LocalStorage.getToken();

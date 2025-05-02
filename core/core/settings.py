@@ -47,9 +47,13 @@ INSTALLED_APPS = [
     'goals',
     'diary',
     'events',
+    'notifications.apps.NotificationsConfig',
+    'work',
+    'project_tasks', # Add the new project tasks app
+    'rest_framework_nested', # Add nested routers back
 ]
 
-ASGI_APPLICATION = 'your_project_name.asgi.application'
+ASGI_APPLICATION = 'core.asgi.application'
 # JWT Authentication settings
 # REST_FRAMEWORK = {
 #     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -70,13 +74,12 @@ REST_FRAMEWORK = {
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  # CORS middleware must be placed before CommonMiddleware
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
-
 ]
 
 ROOT_URLCONF = 'core.urls'
@@ -171,8 +174,24 @@ import os
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# CORS Settings - Maximum permissiveness for development
 CORS_ALLOW_ALL_ORIGINS = True
-# settings.py
+CORS_ALLOW_CREDENTIALS = True
+CORS_ORIGIN_ALLOW_ALL = True
+
+# Specific origins if needed
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:62354",
+    "http://127.0.0.1:62354",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "chrome-extension://*",
+]
+
+# Allow all hosts for development
+ALLOWED_HOSTS = ['*']
 
 CORS_ALLOW_METHODS = [
     'GET',
@@ -180,7 +199,16 @@ CORS_ALLOW_METHODS = [
     'PUT',
     'PATCH',
     'DELETE',
+    'OPTIONS',
 ]
+
+CORS_ALLOW_HEADERS = [
+    '*',  # Allow all headers for development
+]
+
+# Additional CORS settings
+CORS_EXPOSE_HEADERS = ['*']
+CORS_PREFLIGHT_MAX_AGE = 86400  # 24 hours
 
 from datetime import timedelta
 

@@ -6,7 +6,8 @@ import 'package:project/personalScreen/diary_page.dart';
 import 'package:project/services/local_storage.dart';
 import 'package:project/home_page.dart';
 import 'package:project/personalScreen/calender.dart';
-import 'package:project/workspace_dashboard.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class AppRouter {
   static const String homeRoute = '/';
@@ -15,7 +16,6 @@ class AppRouter {
   static const String dashboardRoute = '/dashboard';
   static const String diaryRoute = '/diary';
   static const String calendarRoute = '/calendar';
-  static const String workspaceDashboardRoute = '/workspace_dashboard';
 
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
@@ -31,8 +31,6 @@ class AppRouter {
         return MaterialPageRoute(builder: (_) => DiaryPage());
       case calendarRoute:
         return MaterialPageRoute(builder: (_) => const Calenderpage());
-      case workspaceDashboardRoute:
-        return MaterialPageRoute(builder: (_) => const WorkspaceDashboardScreen());
       default:
         return MaterialPageRoute(
           builder: (_) => Scaffold(
@@ -45,6 +43,46 @@ class AppRouter {
   }
 
   static Future<String> getInitialRoute() async {
-    return homeRoute;
+    // Check if user is logged in
+    final token = await LocalStorage.getToken();
+    if (token == null) {
+      return loginRoute;
+    }
+
+    // Verify token is valid by making a request to the profile endpoint
+    try {
+      // Use the appropriate URL based on platform
+      String baseUrl;
+      // Check if we're running in a browser (web)
+      bool isWeb = identical(0, 0.0);
+
+      if (isWeb) {
+        // For web, use 127.0.0.1 instead of localhost
+        baseUrl = 'http://127.0.0.1:8000';
+      } else {
+        // For native apps, use localhost
+        baseUrl = 'http://localhost:8000';
+      }
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/accounts/profile/'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        // Token is valid, go to dashboard
+        return dashboardRoute;
+      } else {
+        // Token is invalid, clear it and go to login
+        await LocalStorage.clearToken();
+        return loginRoute;
+      }
+    } catch (e) {
+      // Error occurred, go to login
+      return loginRoute;
+    }
   }
 }

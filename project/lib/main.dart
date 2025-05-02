@@ -4,6 +4,7 @@ import 'package:flutter_quill/flutter_quill.dart'; // Import FlutterQuillLocaliz
 import 'package:provider/provider.dart';
 import 'package:calendar_view/calendar_view.dart';
 import 'providers/pages_provider.dart';
+import 'providers/notification_provider.dart';
 import 'app_router.dart';
 import 'personalScreen/bin.dart'; // Import BinProvider
 
@@ -14,11 +15,25 @@ void main() async {
   // Get the initial route based on login status
   String initialRoute = await AppRouter.getInitialRoute();
 
+  // Create providers
+  final pagesProvider = PagesProvider();
+  final binProvider = BinProvider();
+  final notificationProvider = NotificationProvider();
+
+  // Initialize notification provider with a delay to ensure authentication is complete
+  // This prevents errors during registration/login process
+  Future.delayed(const Duration(seconds: 2), () {
+    notificationProvider.initialize().catchError((error) {
+      print('Error initializing notification provider: $error');
+    });
+  });
+
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => PagesProvider()),
-        ChangeNotifierProvider(create: (_) => BinProvider()),
+        ChangeNotifierProvider.value(value: pagesProvider),
+        ChangeNotifierProvider.value(value: binProvider),
+        ChangeNotifierProvider.value(value: notificationProvider),
       ],
       child: MyApp(initialRoute: initialRoute),
     ),

@@ -31,68 +31,95 @@ class _LoginPageState extends State<LoginPage> {
 
 
   Future<void> _loginUser() async {
-  setState(() {
-    _isLoading = true;
-  });
+    setState(() {
+      _isLoading = true;
+    });
 
-  final response = await http.post(
-    Uri.parse('http://127.0.0.1:8000/api/accounts/login/'),
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: json.encode({
-      'email': _emailController.text,
-      'password': _passwordController.text,
-    }),
-  );
+    try {
+      // Login request
+      final response = await http.post(
+        Uri.parse('http://127.0.0.1:8000/api/accounts/login/'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'email': _emailController.text,
+          'password': _passwordController.text,
+        }),
+      );
 
-  setState(() {
-    _isLoading = false;
-  });
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
 
-  if (response.statusCode == 200) {
-    final data = json.decode(response.body);
+        // Save token and then retrieve it to check if it's correctly stored
+        await LocalStorage.saveToken(data['access']);
+        String? storedToken = await LocalStorage.getToken();
+        print("✅ Token retrieved after login: $storedToken");
 
-    // Save token and then retrieve it to check if it's correctly stored
-    await LocalStorage.saveToken(data['access']);
-    String? storedToken = await LocalStorage.getToken();
-    print("✅ Token retrieved after login: $storedToken");
+        // Fetch user profile to save user data
+        try {
+          final profileResponse = await http.get(
+            Uri.parse('http://127.0.0.1:8000/api/accounts/profile/'),
+            headers: {
+              'Authorization': 'Bearer ${data['access']}',
+              'Content-Type': 'application/json',
+            },
+          );
 
+          if (profileResponse.statusCode == 200) {
+            final userData = json.decode(profileResponse.body);
+            print("✅ User profile fetched: $userData");
+            
+            // Save user data to local storage
+            await LocalStorage.saveUser(userData);
+            print("✅ User data saved to local storage");
+          } else {
+            print("⚠️ Failed to fetch user profile: ${profileResponse.statusCode}");
+          }
+        } catch (e) {
+          print("⚠️ Error fetching user profile: $e");
+        }
 
+        if (storedToken != null) {
+          print("✅ Token successfully retrieved after saving!");
 
+          // Initialize the PagesProvider by fetching pages
+          try {
+            final pagesProvider = Provider.of<PagesProvider>(context, listen: false);
+            await pagesProvider.fetchPages();
+            print("✅ Pages fetched successfully after login");
+          } catch (e) {
+            print("⚠️ Error fetching pages after login: $e");
+          }
 
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Login successful')),
+          );
 
-    if (storedToken != null) {
-      print("✅ Token successfully retrieved after saving!");
-
-      // Initialize the PagesProvider by fetching pages
-      try {
-        final pagesProvider = Provider.of<PagesProvider>(context, listen: false);
-        await pagesProvider.fetchPages();
-        print("✅ Pages fetched successfully after login");
-      } catch (e) {
-        print("⚠️ Error fetching pages after login: $e");
+          // Redirect to dashboard
+          Navigator.pushReplacementNamed(context, '/dashboard');
+        } else {
+          print("⚠️ Token retrieval failed after saving.");
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Error: Token not saved correctly')),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Login failed: ${response.body}')),
+        );
       }
-
+    } catch (e) {
+      print("❌ Error during login: $e");
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Login successful')),
+        SnackBar(content: Text('Login error: $e')),
       );
-
-      // Redirect to dashboard
-      Navigator.pushReplacementNamed(context, '/dashboard');
-    } else {
-      print("⚠️ Token retrieval failed after saving.");
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error: Token not saved correctly')),
-      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
-  } else {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Login failed: ${response.body}')),
-    );
   }
-
-}
 
 
 
@@ -281,4 +308,3 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
-

@@ -19,6 +19,8 @@ class Migration(migrations.Migration):
                 ('full_name', models.CharField(max_length=255)),
                 ('email', models.EmailField(max_length=254, unique=True)),
                 ('password', models.CharField(max_length=128)),
+                ('is_active', models.BooleanField(default=True)),
+                ('is_staff', models.BooleanField(default=False)),
             ],
             options={
                 'abstract': False,

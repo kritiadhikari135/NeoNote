@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:project/widgets/custom_scaffold_workspace.dart';
+import 'package:project/work_page.dart';
 // import 'package:project/dashboard.dart';
 
 class WorkspaceDashboardScreen extends StatefulWidget {
@@ -17,9 +18,16 @@ class _WorkspaceDashboardScreenState extends State<WorkspaceDashboardScreen> {
     return CustomScaffoldWorkspace(
       selectedPage: _selectedPage,
       onItemSelected: (page) {
-        setState(() {
-          _selectedPage = page;
-        });
+        if (page == 'Work') {
+          // Navigate to the Work page
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const WorkPage()),
+          );
+        } else {
+          setState(() {
+            _selectedPage = page;
+          });
+        }
       },
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -27,16 +27,44 @@ class PagesProvider extends ChangeNotifier {
   }
 
   // Create a new page (with empty content) and return the created page.
-  Future<PageModel> createPage(String title, String content) async {
-    final newPage = await _apiService.createPage(title, content);
+  // Optional parentId parameter for creating subpages
+  Future<PageModel> createPage(String title, String content, {int? parentId}) async {
+    final newPage = await _apiService.createPage(title, content, parentId: parentId);
     await fetchPages();
     return newPage;
   }
 
+  // Get subpages for a specific parent page
+  List<PageModel> getSubpages(int parentId) {
+    print('Getting subpages for parent ID: $parentId');
+
+    final subpages = _pages.where((page) => page.parentId == parentId).toList();
+
+    print('Found ${subpages.length} subpages for parent ID: $parentId');
+    for (var subpage in subpages) {
+      print('Subpage: ID=${subpage.id}, title=${subpage.title}, parentId=${subpage.parentId}');
+    }
+
+    return subpages;
+  }
+
+  // Get top-level pages (pages without a parent)
+  List<PageModel> getTopLevelPages() {
+    return _pages.where((page) => page.parentId == null).toList();
+  }
+
   // Update an existing page.
-  Future<void> updatePage(int id, String title, String content) async {
-    await _apiService.updatePage(id, title, content);
-    await fetchPages();
+  Future<void> updatePage(int id, String title, String content, {int? parentId}) async {
+    try {
+      print('PagesProvider: Updating page ID: $id, title: $title, parentId: $parentId');
+      await _apiService.updatePage(id, title, content, parentId: parentId);
+      print('PagesProvider: Page updated successfully, refreshing pages');
+      await fetchPages();
+      print('PagesProvider: Pages refreshed successfully');
+    } catch (e) {
+      print('PagesProvider: Error updating page: $e');
+      throw e; // Re-throw the error to be handled by the caller
+    }
   }
 
   // Delete a page.

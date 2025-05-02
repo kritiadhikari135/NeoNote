@@ -1,6 +1,147 @@
 # from rest_framework import status, generics
 # from rest_framework.response import Response
 # from rest_framework_simplejwt.tokens import RefreshToken
+# from rest_framework.views import APIView
+# from rest_framework.permissions import AllowAny, IsAuthenticated
+# from django.core.exceptions import ValidationError
+# from django.db import transaction
+# from .models import CustomUser, EmailOtp
+# from .serializers import CustomUserSerializer, UserSerializer
+
+# import logging
+
+# # Set up logging
+# logger = logging.getLogger(__name__)
+
+# class SendOTPView(APIView):
+#     """
+#     View to send OTP to the user's email.
+#     """
+#     permission_classes = [AllowAny]
+
+#     def post(self, request, *args, **kwargs):
+#         email = request.data.get('email')
+
+#         if not email:
+#             return Response(
+#                 {"detail": "Email is required."},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+
+#         try:
+#             # Generate and send OTP
+#             otp = OTP.generate_otp(email)
+
+#             # Log success but don't include the OTP in the response for security
+#             logger.info(f"OTP sent successfully to {email}")
+
+#             return Response(
+#                 {"detail": "OTP sent successfully to your email."},
+#                 status=status.HTTP_200_OK
+#             )
+#         except Exception as e:
+#             logger.error(f"Error sending OTP to {email}: {str(e)}")
+#             return Response(
+#                 {"detail": f"Failed to send OTP: {str(e)}"},
+#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
+#             )
+
+# class VerifyOTPView(APIView):
+#     """
+#     View to verify OTP before registration.
+#     """
+#     permission_classes = [AllowAny]
+
+#     def post(self, request, *args, **kwargs):
+#         email = request.data.get('email')
+#         otp_code = request.data.get('otp')
+
+#         if not email or not otp_code:
+#             return Response(
+#                 {"detail": "Email and OTP are required."},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+
+#         # Verify OTP
+#         if OTP.verify_otp(email, otp_code):
+#             return Response(
+#                 {"detail": "OTP verified successfully."},
+#                 status=status.HTTP_200_OK
+#             )
+#         else:
+#             return Response(
+#                 {"detail": "Invalid or expired OTP."},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+
+# class RegisterUserView(generics.CreateAPIView):
+#     """
+#     View to register a new user.
+#     """
+#     queryset = CustomUser.objects.all()
+#     serializer_class = CustomUserSerializer
+#     permission_classes = [AllowAny]  # No authentication required for registration
+
+#     def create(self, request, *args, **kwargs):
+#         # Extract OTP from request data
+#         otp_code = request.data.get('otp')
+#         email = request.data.get('email')
+
+#         # If OTP is provided, verify it
+#         if otp_code and email:
+#             if not OTP.verify_otp(email, otp_code):
+#                 return Response(
+#                     {"detail": "Invalid or expired OTP."},
+#                     status=status.HTTP_400_BAD_REQUEST
+#                 )
+
+#         # Proceed with user registration
+#         return super().create(request, *args, **kwargs)
+
+# class LoginUserView(generics.GenericAPIView):
+#     """
+#     View to login and create a token for the user.
+#     """
+#     serializer_class = CustomUserSerializer
+#     permission_classes = [AllowAny]  # No authentication required for login
+
+#     def post(self, request, *args, **kwargs):
+#         email = request.data.get('email')
+#         password = request.data.get('password')
+
+#         try:
+#             user = CustomUser.objects.get(email=email)
+#         except CustomUser.DoesNotExist:
+#             return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+#         if not user.check_password(password):
+#             return Response({"detail": "Invalid credentials."}, status=status.HTTP_400_BAD_REQUEST)
+
+#         refresh = RefreshToken.for_user(user)
+#         access_token = refresh.access_token
+#         # Print access token in the terminal
+#         print(f"\n[DEBUG] Access Token for {email}: {access_token}\n")
+#         logger.info(f"Access Token for {email}: {access_token}")
+
+#         return Response({
+#             "refresh": str(refresh),
+#             "access": str(access_token),
+#         })
+
+# class UserProfileView(APIView):
+#     permission_classes = [IsAuthenticated]  # Ensure only authenticated users can access this view
+
+#     def get(self, request):
+#         user = request.user  # `request.user` is the currently authenticated user
+#         serializer = UserSerializer(user)
+#         return Response(serializer.data)
+
+# ======================================================================================================================================
+
+
+# from rest_framework import status, generics
+# from rest_framework.response import Response
+# from rest_framework_simplejwt.tokens import RefreshToken
 # from .models import CustomUser
 # from .serializers import CustomUserSerializer
 # from rest_framework.permissions import AllowAny

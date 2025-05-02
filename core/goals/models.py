@@ -68,6 +68,8 @@ class Goal(models.Model):
     completion_date = models.DateField()
     is_completed = models.BooleanField(default=False)
     completion_time = models.DateTimeField(null=True, blank=True)
+    has_reminder = models.BooleanField(default=False)
+    reminder_date_time = models.DateTimeField(null=True, blank=True)
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='goals')  # Goal owner
     created_by = models.CharField(max_length=100, default='system')
     created_at = models.DateTimeField(default=timezone.now)  # Default value added here
@@ -114,7 +116,8 @@ class Task(models.Model):
     date_created = models.DateTimeField(auto_now_add=True)
     goal = models.ForeignKey(Goal, related_name='tasks', on_delete=models.CASCADE, null=True, blank=True)
     created_by = models.CharField(max_length=100, default='system')
-  
+    has_reminder = models.BooleanField(default=False)
+    reminder_date_time = models.DateTimeField(null=True, blank=True)
 
 
     def __str__(self):

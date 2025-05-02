@@ -1,15 +1,15 @@
-
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:project/personalScreen/quicknotes.dart';
 import 'package:project/providers/pages_provider.dart';
-import 'package:project/models/page.dart'; // Ensure PageModel is imported
+import 'package:project/providers/notification_provider.dart';
+import 'package:project/models/page.dart';
 import 'package:project/personalScreen/diary_page.dart';
 import 'package:project/dashboard.dart';
 import 'package:project/personalScreen/notification.dart';
-import 'package:project/personalScreen/bin.dart'; // Import for BinPage and BinProvider
+import 'package:project/personalScreen/bin.dart';
 import 'package:project/personalScreen/calender.dart';
+import 'package:project/workspace_dashboard.dart'; // Add this import
 
 import 'package:project/personalScreen/goal.dart';
 import 'package:project/personalScreen/tasklist.dart';
@@ -33,32 +33,13 @@ class CustomScaffold extends StatefulWidget {
   _CustomScaffoldState createState() => _CustomScaffoldState();
 }
 
-class _CustomScaffoldState extends State<CustomScaffold> {
+class _CustomScaffoldState extends State<CustomScaffold> with SingleTickerProviderStateMixin {
   List<String> personalSpacePages = ['Diary',  'Goals', 'Task List'];
 
   @override
-  void initState() {
-    super.initState();
-    // Fetch pages when the scaffold is first created
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _fetchPages();
-    });
-  }
-
-  // Fetch user's content pages
-  Future<void> _fetchPages() async {
-    try {
-      // Access the PagesProvider and fetch pages
-      final pagesProvider = Provider.of<PagesProvider>(context, listen: false);
-      await pagesProvider.fetchPages();
-      print('✅ Pages fetched successfully in CustomScaffold');
-    } catch (e) {
-      print('⚠️ Error fetching pages in CustomScaffold: $e');
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+
     return Scaffold(
       floatingActionButton: widget.floatingActionButton,
       body: Row(
@@ -85,52 +66,92 @@ class _CustomScaffoldState extends State<CustomScaffold> {
                     ),
                     const Divider(),
                     _buildSidebarItem(Icons.home, 'Home', '/dashboard'),
-                    _buildSidebarItem(Icons.notifications, 'Notification', NotificationPage()),
-                    _buildSidebarItem(Icons.work, 'Switch to Workspace', '/workspace_dashboard', isDashboardSwitch: true),
+                    // Notification with badge count
+                    Consumer<NotificationProvider>(
+                      builder: (context, notificationProvider, child) {
+                        final unreadCount = notificationProvider.unreadCount;
+                        return _buildSidebarItem(
+                          Icons.notifications,
+                          'Notification',
+                          NotificationPage(),
+                          badgeCount: unreadCount,
+                        );
+                      },
+                    ),
+                    // Switch to Team Space button
+                    _buildSidebarItem(
+                      Icons.work,
+                      'Switch to Team Space',
+                      WorkspaceDashboardScreen(),
+                    ),
                     const Divider(),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      child: Column(
                         children: [
-                          const Text(
-                            'Personal Space',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE3F2FD).withOpacity(0.5),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFF255DE1).withOpacity(0.2)),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            margin: const EdgeInsets.only(bottom: 8),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Personal Space',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF255DE1),
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.add, color: Color(0xFF255DE1)),
+                                  onPressed: () => _showAddPageDialog(context),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  splashRadius: 20,
+                                ),
+                              ],
+                            ),
                           ),
-                          IconButton(
-                            icon: const Icon(Icons.add, color: Colors.black54),
-                            onPressed: () => _showAddPageDialog(context),
+                          Column(
+                            children: [
+                              for (var page in personalSpacePages)
+                                _buildSidebarItem(_getIconForPage(page), page, _getPageByName(page)),
+                              Consumer<PagesProvider>(
+                                builder: (context, pagesProvider, child) {
+                                  final topLevelPages = pagesProvider.getTopLevelPages();
+                                  return Column(
+                                    children: topLevelPages.map((pageModel) {
+                                      return _CustomPageItem(
+                                        pageModel: pageModel,
+                                        isSelected: widget.selectedPage == pageModel.title,
+                                        onTap: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => ContentPage(page: pageModel),
+                                            ),
+                                          );
+                                        },
+                                        onDelete: () => _showDeleteConfirmationDialog(context, pageModel),
+                                      );
+                                    }).toList(),
+                                  );
+                                },
+                              ),
+                            ],
                           ),
                         ],
                       ),
                     ),
-                    for (var page in personalSpacePages)
-                      _buildSidebarItem(_getIconForPage(page), page, _getPageByName(page)),
-                    Consumer<PagesProvider>(
-                      builder: (context, pagesProvider, child) {
-                        return Column(
-                          children: pagesProvider.pages.map((pageModel) {
-                            return _CustomPageItem(
-                              pageModel: pageModel,
-                              isSelected: widget.selectedPage == pageModel.title,
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => ContentPage(page: pageModel),
-                                  ),
-                                );
-                              },
-                              onDelete: () => _showDeleteConfirmationDialog(context, pageModel),
-                            );
-                          }).toList(),
-                        );
-                      },
-                    ),
                     const Divider(),
                     _buildSidebarItem(Icons.calendar_today, 'Calendar', Calenderpage()),
                     _buildSidebarItem(Icons.delete, 'Bin', BinPage()),
-
                   ],
                 ),
               ),
@@ -142,24 +163,21 @@ class _CustomScaffoldState extends State<CustomScaffold> {
           ),
         ],
       ),
-        // floatingActionButton: floatingActionButton,  // Use the parameter here
     );
   }
 
- Widget _buildSidebarItem(IconData icon, String label, dynamic destination, {bool isDashboardSwitch = false}) {
+ Widget _buildSidebarItem(IconData icon, String label, dynamic destination, {int badgeCount = 0}) {
   bool isSelected = widget.selectedPage == label;
 
   return _HoverSidebarItem(
     icon: icon,
     label: label,
     isSelected: isSelected,
+    badgeCount: badgeCount,
     onTap: () {
       // Delay navigation until the current frame is complete
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (isDashboardSwitch) {
-          // Use pushReplacementNamed for dashboard switching to avoid stacking screens
-          Navigator.pushReplacementNamed(context, destination);
-        } else if (destination is String) {
+        if (destination is String) {
           Navigator.pushNamed(context, destination);
         } else if (destination is Widget) {
           Navigator.push(
@@ -219,8 +237,9 @@ class _CustomScaffoldState extends State<CustomScaffold> {
             ElevatedButton(
               onPressed: () {
                 if (controller.text.isNotEmpty) {
+                  // Create a top-level page (no parentId)
                   Provider.of<PagesProvider>(context, listen: false)
-                      .createPage(controller.text, "")
+                      .createPage(controller.text, "", parentId: null)
                       .then((newPage) {
                     Navigator.of(dialogContext).pop();
                     Navigator.push(
@@ -293,12 +312,14 @@ class _HoverSidebarItem extends StatefulWidget {
   final String label;
   final VoidCallback onTap;
   final bool isSelected;
+  final int badgeCount;
 
   const _HoverSidebarItem({
     required this.icon,
     required this.label,
     required this.onTap,
     this.isSelected = false,
+    this.badgeCount = 0,
   });
 
   @override
@@ -404,6 +425,27 @@ class _HoverSidebarItemState extends State<_HoverSidebarItem> with SingleTickerP
                           ),
                         ),
                       ),
+                      if (widget.badgeCount > 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 20,
+                            minHeight: 20,
+                          ),
+                          child: Text(
+                            widget.badgeCount > 99 ? '99+' : widget.badgeCount.toString(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
                     ],
                   ),
                 ),

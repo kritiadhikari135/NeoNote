@@ -292,8 +292,10 @@
 
 
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart'; // For SystemMouseCursors
 import 'package:intl/intl.dart';
 import 'package:project/models/goals_model.dart';
+import 'package:project/personalScreen/goal_task_detail.dart';
 
 class GoalCard extends StatelessWidget {
   final Goal goal;
@@ -317,124 +319,157 @@ class GoalCard extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Column(
-        children: [
-          ListTile(
-            contentPadding: const EdgeInsets.all(16),
-            title: Text(
-              goal.title,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click, // Show hand cursor on hover
+        child: GestureDetector(
+          onTap: () {
+            // Navigate to the task list when the goal card is clicked
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => GoalDetailScreen(goal: goal),
               ),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 8),
-                Row(
+            );
+          },
+          child: Column(
+            children: [
+              ListTile(
+                contentPadding: const EdgeInsets.all(16),
+                title: Text(
+                  goal.title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        '${DateFormat.yMMMd().format(goal.startDate)} - ${DateFormat.yMMMd().format(goal.completionDate)}',
-                        style: TextStyle(color: Colors.grey[600]),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            '${DateFormat.yMMMd().format(goal.startDate)} - ${DateFormat.yMMMd().format(goal.completionDate)}',
+                            style: TextStyle(color: Colors.grey[600]),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if ((goal.hasReminder ?? false) && goal.reminderDateTime != null) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(Icons.notifications_active, size: 16, color: Colors.blue[600]),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              'Reminder: ${DateFormat('MMM d, yyyy - h:mm a').format(_getLocalDateTime(goal.reminderDateTime!))}',
+                              style: TextStyle(
+                                color: Colors.blue[600],
+                                fontWeight: FontWeight.w500,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
+                    ],
+                    if (goal.tasks.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      LinearProgressIndicator(
+                        value: goal.completionPercentage() / 100,
+                        backgroundColor: Colors.grey[200],
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          Color(0xFF255DE1),
+                        ),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${goal.completionPercentage().toStringAsFixed(0)}% Complete',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Transform.scale(
+                      scale: 1.2,
+                      child: Checkbox(
+                        value: goal.isCompleted,
+                        onChanged: (_) => onToggleCompletion(),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        activeColor: const Color(0xFF255DE1),
+                      ),
+                    ),
+                    PopupMenuButton<String>(
+                      icon: const Icon(Icons.more_vert),
+                      onSelected: (choice) {
+                        if (choice == 'edit') {
+                          onEdit();
+                        } else if (choice == 'delete') {
+                          onDelete();
+                        }
+                      },
+                      itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                        const PopupMenuItem<String>(
+                          value: 'edit',
+                          child: Row(
+                            children: [
+                              Icon(Icons.edit, size: 20),
+                              SizedBox(width: 8),
+                              Text('Edit'),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuItem<String>(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              Icon(Icons.delete, size: 20, color: Colors.red),
+                              SizedBox(width: 8),
+                              Text('Delete', style: TextStyle(color: Colors.red)),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-                if (goal.tasks.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  LinearProgressIndicator(
-                    value: goal.completionPercentage() / 100,
-                    backgroundColor: Colors.grey[200],
-                    valueColor: const AlwaysStoppedAnimation<Color>(
-                      Color(0xFF255DE1),
-                    ),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${goal.completionPercentage().toStringAsFixed(0)}% Complete',
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Transform.scale(
-                  scale: 1.2,
-                  child: Checkbox(
-                    value: goal.isCompleted,
-                    onChanged: (_) => onToggleCompletion(),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    activeColor: const Color(0xFF255DE1),
-                  ),
-                ),
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert),
-                  onSelected: (choice) {
-                    if (choice == 'edit') {
-                      onEdit();
-                    } else if (choice == 'delete') {
-                      onDelete();
-                    }
-                  },
-                  itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                    const PopupMenuItem<String>(
-                      value: 'edit',
-                      child: Row(
-                        children: [
-                          Icon(Icons.edit, size: 20),
-                          SizedBox(width: 8),
-                          Text('Edit'),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem<String>(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(Icons.delete, size: 20, color: Colors.red),
-                          SizedBox(width: 8),
-                          Text('Delete', style: TextStyle(color: Colors.red)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          if (goal.tasks.isNotEmpty) ...[
-            const Divider(),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Tasks',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  ...goal.tasks.map((task) => _buildTaskItem(task)),
-                ],
               ),
-            ),
-          ],
-        ],
+              if (goal.tasks.isNotEmpty) ...[
+                const Divider(),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Tasks',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ...goal.tasks.map((task) => _buildTaskItem(task)),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -478,6 +513,14 @@ class GoalCard extends StatelessWidget {
       ),
     );
   }
+
+  // Helper method to handle DateTime display
+  // We want to display the time exactly as it was entered by the user
+  DateTime _getLocalDateTime(DateTime dateTime) {
+    // We no longer need to convert the time zone
+    // Just return the original date time
+    return dateTime;
+  }
 }
 
 class CompletedGoalCard extends StatelessWidget {
@@ -501,84 +544,124 @@ class CompletedGoalCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       color: Colors.grey[50],
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(16),
-        title: Text(
-          goal.title,
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey[600],
-            decoration: TextDecoration.lineThrough,
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 8),
-            Row(
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click, // Show hand cursor on hover
+        child: GestureDetector(
+          onTap: () {
+            // Navigate to the task list when the goal card is clicked
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => GoalDetailScreen(goal: goal),
+              ),
+            );
+          },
+          child: ListTile(
+            contentPadding: const EdgeInsets.all(16),
+            title: Text(
+              goal.title,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[600],
+                decoration: TextDecoration.lineThrough,
+              ),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.calendar_today, size: 16, color: Colors.grey[400]),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    '${DateFormat.yMMMd().format(goal.startDate)} - ${DateFormat.yMMMd().format(goal.completionDate)}',
-                    style: TextStyle(color: Colors.grey[400]),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(Icons.calendar_today, size: 16, color: Colors.grey[400]),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        '${DateFormat.yMMMd().format(goal.startDate)} - ${DateFormat.yMMMd().format(goal.completionDate)}',
+                        style: TextStyle(color: Colors.grey[400]),
+                      ),
+                    ),
+                  ],
+                ),
+                if ((goal.hasReminder ?? false) && goal.reminderDateTime != null) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.notifications_active, size: 16, color: Colors.grey[400]),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          'Reminder: ${DateFormat('MMM d, yyyy - h:mm a').format(_getLocalDateTime(goal.reminderDateTime!))}',
+                          style: TextStyle(
+                            color: Colors.grey[400],
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (goal.completionTime != null) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.check_circle, size: 16, color: Colors.grey[400]),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Completed on ${DateFormat.yMMMd().add_jm().format(_getLocalDateTime(goal.completionTime!))}',
+                        style: TextStyle(
+                          color: Colors.grey[400],
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+            trailing: PopupMenuButton<String>(
+              icon: Icon(Icons.more_vert, color: Colors.grey[400]),
+              onSelected: (choice) {
+                if (choice == 'edit') {
+                  onEdit();
+                } else if (choice == 'delete') {
+                  onDelete();
+                }
+              },
+              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                const PopupMenuItem<String>(
+                  value: 'edit',
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit, size: 20),
+                      SizedBox(width: 8),
+                      Text('Edit'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem<String>(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete, size: 20, color: Colors.red),
+                      SizedBox(width: 8),
+                      Text('Delete', style: TextStyle(color: Colors.red)),
+                    ],
                   ),
                 ),
               ],
             ),
-            if (goal.completionTime != null) ...[
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  Icon(Icons.check_circle, size: 16, color: Colors.grey[400]),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Completed on ${DateFormat.yMMMd().add_jm().format(goal.completionTime!)}',
-                    style: TextStyle(
-                      color: Colors.grey[400],
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ],
-        ),
-        trailing: PopupMenuButton<String>(
-          icon: Icon(Icons.more_vert, color: Colors.grey[400]),
-          onSelected: (choice) {
-            if (choice == 'edit') {
-              onEdit();
-            } else if (choice == 'delete') {
-              onDelete();
-            }
-          },
-          itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-            const PopupMenuItem<String>(
-              value: 'edit',
-              child: Row(
-                children: [
-                  Icon(Icons.edit, size: 20),
-                  SizedBox(width: 8),
-                  Text('Edit'),
-                ],
-              ),
-            ),
-            const PopupMenuItem<String>(
-              value: 'delete',
-              child: Row(
-                children: [
-                  Icon(Icons.delete, size: 20, color: Colors.red),
-                  SizedBox(width: 8),
-                  Text('Delete', style: TextStyle(color: Colors.red)),
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
+  }
+
+  // Helper method to handle DateTime display
+  // We want to display the time exactly as it was entered by the user
+  DateTime _getLocalDateTime(DateTime dateTime) {
+    // We no longer need to convert the time zone
+    // Just return the original date time
+    return dateTime;
   }
 }
