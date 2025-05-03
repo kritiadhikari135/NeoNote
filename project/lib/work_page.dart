@@ -592,8 +592,8 @@ class ProjectCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 4),
-            // Display Host Info if hosted by user and owner info is available
-            if (isHostedByUser && owner != null)
+            // Display Host Info if owner info is available (for both hosted and member projects)
+            if (owner != null)
               Padding(
                 padding: const EdgeInsets.only(top: 4.0),
                 child: Row(

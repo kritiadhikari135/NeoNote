@@ -191,8 +191,22 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
     // Store a reference to the ScaffoldMessengerState before any async operations
     final scaffoldMessenger = ScaffoldMessenger.of(context);
 
+    // Store a reference to the Navigator state
+    final navigator = Navigator.of(context);
+
+    // Show loading dialog
+    if (mounted) {
+      _showLoadingDialog(context);
+    }
+
     final token = await LocalStorage.getToken();
     if (token == null) {
+      // Close loading dialog
+      if (mounted) {
+        // Use the stored navigator reference
+        navigator.pop();
+      }
+
       if (!mounted) return;
       // Use the stored reference
       scaffoldMessenger.showSnackBar(
@@ -211,14 +225,23 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
         body: json.encode({'email': email}),
       );
 
+      // Close loading dialog
+      if (mounted) {
+        // Use the stored navigator reference
+        navigator.pop();
+      }
+
       // Check if widget is still mounted before proceeding
       if (!mounted) return;
 
       if (response.statusCode == 201) {
-        // Use the stored reference
-        scaffoldMessenger.showSnackBar(
-          const SnackBar(content: Text('Invitation sent successfully'), backgroundColor: Colors.green),
-        );
+        // Show success dialog
+        if (mounted) {
+          _showSuccessDialog(
+            title: 'Invitation Sent',
+            content: 'Invitation sent successfully to $email',
+          );
+        }
       } else {
         final errorData = json.decode(response.body);
         final errorMessage = errorData['error'] ?? 'Failed to send invitation';
@@ -250,6 +273,12 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
         }
       }
     } catch (e) {
+      // Close loading dialog if it's still showing
+      if (mounted) {
+        // Use the stored navigator reference
+        navigator.pop();
+      }
+
       // Check if widget is still mounted before using context
       if (!mounted) return;
 
@@ -270,6 +299,60 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
         return AlertDialog(
           title: Text(title),
           content: Text(content),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Helper method to show loading dialog
+  void _showLoadingDialog(BuildContext context) {
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return const AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Sending invitation...'),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // Helper method to show success dialog
+  void _showSuccessDialog({required String title, required String content}) {
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: Text(title),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.check_circle,
+                color: Colors.green,
+                size: 64,
+              ),
+              const SizedBox(height: 16),
+              Text(content),
+            ],
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
