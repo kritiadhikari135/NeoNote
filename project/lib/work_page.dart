@@ -530,16 +530,16 @@ class ProjectCard extends StatelessWidget {
         ).then((_) => fetchProjects()); // Refresh projects when returning from detail page
       },
       child: Container(
-        padding: const EdgeInsets.all(4.0),
+        padding: const EdgeInsets.all(8.0), // Increased padding
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(4.0),
-          boxShadow: [
+          borderRadius: BorderRadius.circular(8.0), // Increased border radius
+          boxShadow: const [
             BoxShadow(
-              color: Colors.grey.withOpacity(0.2),
+              color: Color(0x29000000), // 16% opacity black
               spreadRadius: 1,
-              blurRadius: 2,
-              offset: const Offset(0, 1),
+              blurRadius: 3,
+              offset: Offset(0, 1),
             ),
           ],
         ),
@@ -547,10 +547,10 @@ class ProjectCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              padding: const EdgeInsets.symmetric(vertical: 4),
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6), // Increased padding
               decoration: BoxDecoration(
-                color: const Color(0xFF255DE1).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(3),
+                color: const Color(0xFFE6EFFF), // Light blue color instead of using withOpacity
+                borderRadius: BorderRadius.circular(6), // Increased border radius
               ),
               child: Row(
                 children: [
@@ -564,7 +564,7 @@ class ProjectCard extends StatelessWidget {
                     child: Text(
                       project['name'],
                       style: const TextStyle(
-                        fontSize: 16,
+                        fontSize: 18, // Increased from 16 to 18
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF255DE1),
                       ),
@@ -581,29 +581,29 @@ class ProjectCard extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 8), // Increased spacing
             Text(
               project['description'],
               style: const TextStyle(
-                fontSize: 14,
-                color: Colors.black54,
+                fontSize: 16, // Increased from 14 to 16
+                color: Colors.black87, // Darker color for better readability
               ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 8), // Increased spacing
             // Display Host Info if owner info is available (for both hosted and member projects)
             if (owner != null)
               Padding(
                 padding: const EdgeInsets.only(top: 4.0),
                 child: Row(
                   children: [
-                    Icon(Icons.star, size: 12, color: Colors.orange[700]),
+                    Icon(Icons.star, size: 14, color: Colors.orange[700]), // Increased icon size
                     const SizedBox(width: 4),
                     Text(
                       'Host: ${owner['full_name'] ?? 'Unknown'}',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 14, // Increased from 12 to 14
                         color: Colors.grey[700],
                         fontWeight: FontWeight.w500,
                       ),
@@ -614,42 +614,59 @@ class ProjectCard extends StatelessWidget {
               ),
             if (members.isNotEmpty)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                margin: const EdgeInsets.only(top: 8), // Added margin for spacing
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(3),
-                  border: Border.all(
-                    color: Colors.grey[300]!,
-                    width: 0.5,
-                  ),
+                  color: const Color(0xFFEEEEEE), // Light grey color
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x1A000000), // 10% opacity black
+                      spreadRadius: 1,
+                      blurRadius: 2,
+                      offset: Offset(0, 1),
+                    ),
+                  ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Team Members',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black54,
+                    const Padding(
+                      padding: EdgeInsets.only(left: 4, bottom: 4),
+                      child: Text(
+                        'Team',
+                        style: TextStyle(
+                          fontSize: 14, // Increased from 12 to 14
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black54,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 3),
                     Wrap(
-                      spacing: 3,
-                      runSpacing: 3,
+                      spacing: 4, // Increased spacing
+                      runSpacing: 4, // Increased spacing
                       children: members.map((member) {
                         return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          margin: const EdgeInsets.only(right: 4, bottom: 4), // Added margin
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), // Increased padding
                           decoration: BoxDecoration(
-                            color: const Color(0xFF255DE1).withOpacity(0.1),
+                            color: const Color(0xFFE6EFFF), // Light blue color
                             borderRadius: BorderRadius.circular(8),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x1A000000), // 10% opacity black
+                                spreadRadius: 1,
+                                blurRadius: 2,
+                                offset: Offset(0, 1),
+                              ),
+                            ],
                           ),
                           child: Text(
                             member['full_name'] ?? 'Unknown',
                             style: const TextStyle(
-                              fontSize: 12,
+                              fontSize: 13, // Increased from 12 to 13
                               color: Color(0xFF255DE1),
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         );

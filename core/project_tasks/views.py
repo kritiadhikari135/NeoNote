@@ -37,10 +37,39 @@ class ProjectTaskViewSet(viewsets.ModelViewSet):
         project_id = self.kwargs['project_pk']
         return ProjectTask.objects.filter(project_id=project_id)
 
+    def list(self, request, *args, **kwargs):
+        """ Override list method to separate active and completed tasks """
+        project_id = self.kwargs['project_pk']
+        queryset = ProjectTask.objects.filter(project_id=project_id)
+
+        active_tasks = queryset.exclude(status="completed")
+        completed_tasks = queryset.filter(status="completed")
+
+        return Response({
+            "active_tasks": ProjectTaskSerializer(active_tasks, many=True).data,
+            "completed_tasks": ProjectTaskSerializer(completed_tasks, many=True).data
+        })
+
     def perform_create(self, serializer):
         """ Sets the project and created_by user automatically """
         project_id = self.kwargs['project_pk']
-        serializer.save(project_id=project_id, created_by=self.request.user)
+        # Set completed field based on status
+        status_value = serializer.validated_data.get('status', 'pending')
+        completed = status_value == 'completed'
+        serializer.save(
+            project_id=project_id,
+            created_by=self.request.user,
+            completed=completed
+        )
+
+    def perform_update(self, serializer):
+        """ Update the completed field based on status """
+        status_value = serializer.validated_data.get('status')
+        if status_value:
+            completed = status_value == 'completed'
+            serializer.save(completed=completed)
+        else:
+            serializer.save()
 
     @action(detail=True, methods=['get'])
     def submissions(self, request, project_pk=None, pk=None):

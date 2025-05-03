@@ -18,11 +18,13 @@ extension StringCasingExtension on String {
 class ProjectTaskList extends StatefulWidget {
   final int projectId;
   final List<Map<String, dynamic>> teamMembers;
+  final Function? onTasksUpdated; // Callback for when tasks are updated
 
   const ProjectTaskList({
     super.key,
     required this.projectId,
     required this.teamMembers,
+    this.onTasksUpdated,
   });
 
   @override
@@ -30,7 +32,8 @@ class ProjectTaskList extends StatefulWidget {
 }
 
 class ProjectTaskListState extends State<ProjectTaskList> {
-  List<dynamic> _tasks = [];
+  List<dynamic> _activeTasks = [];
+  List<dynamic> _completedTasks = [];
   bool _isLoading = true;
   String? _error;
 
@@ -67,9 +70,16 @@ class ProjectTaskListState extends State<ProjectTaskList> {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         setState(() {
-          _tasks = data ?? [];
+          // Handle the new response format with active and completed tasks
+          _activeTasks = data['active_tasks'] ?? [];
+          _completedTasks = data['completed_tasks'] ?? [];
           _isLoading = false;
         });
+
+        // Notify parent about task update
+        if (widget.onTasksUpdated != null) {
+          widget.onTasksUpdated!();
+        }
       } else {
         setState(() {
           _error = 'Failed to load tasks: ${response.statusCode}';
@@ -129,8 +139,15 @@ class ProjectTaskListState extends State<ProjectTaskList> {
 
         final data = json.decode(response.body);
         setState(() {
-          _tasks.add(data);
+          // Add the new task to active tasks
+          _activeTasks.add(data);
         });
+
+        // Notify parent about task update
+        if (widget.onTasksUpdated != null) {
+          widget.onTasksUpdated!();
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Task added successfully'),
@@ -294,8 +311,77 @@ class ProjectTaskListState extends State<ProjectTaskList> {
     );
   }
 
+  // Method to toggle task completion status
+  Future<void> _toggleTaskCompletion(Map<String, dynamic> task) async {
+    try {
+      final token = await LocalStorage.getToken();
+      if (token == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Not authenticated')),
+        );
+        return;
+      }
+
+      // Determine the new status
+      final String currentStatus = task['status'] ?? 'pending';
+      final String newStatus = currentStatus == 'completed' ? 'pending' : 'completed';
+
+      final response = await http.patch(
+        Uri.parse('http://127.0.0.1:8000/api/work/projects/${widget.projectId}/tasks/${task['id']}/'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'status': newStatus,
+        }),
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        // Store the success message before the async gap
+        final String successMessage = newStatus == 'completed'
+          ? 'Task marked as completed'
+          : 'Task marked as active';
+
+        // Refresh the task lists
+        await _fetchProjectTasks();
+
+        // Check if still mounted after the async gap
+        if (!mounted) return;
+
+        // Notify parent about task update - no need to call here since _fetchProjectTasks already calls it
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(successMessage),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update task status: ${response.statusCode}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error updating task: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   // Build a hoverable table row with stylish effects
-  TableRow _buildHoverableTableRow(Map<String, dynamic> task) {
+  TableRow _buildHoverableTableRow(Map<String, dynamic> task, {bool isCompleted = false}) {
     // Get priority color for consistent hover effects
     final priorityColor = _getPriorityColor(task['priority'] ?? 'low');
 
@@ -306,6 +392,20 @@ class ProjectTaskListState extends State<ProjectTaskList> {
         border: Border(bottom: BorderSide(color: Colors.grey.shade100, width: 1)),
       ),
       children: [
+        // Checkbox column
+        Builder(
+          builder: (context) {
+            return Padding(
+              padding: const EdgeInsets.all(12),
+              child: Checkbox(
+                value: isCompleted,
+                onChanged: (bool? value) {
+                  _toggleTaskCompletion(task);
+                },
+              ),
+            );
+          },
+        ),
         // Title column with hover effect
         Builder(
           builder: (context) {
@@ -334,6 +434,8 @@ class ProjectTaskListState extends State<ProjectTaskList> {
                               style: const TextStyle(
                                 fontWeight: FontWeight.w500,
                               ),
+                              overflow: isCompleted ? TextOverflow.visible : TextOverflow.ellipsis,
+                              maxLines: isCompleted ? null : 2,
                             ),
                           ),
                           const SizedBox(width: 4),
@@ -369,6 +471,37 @@ class ProjectTaskListState extends State<ProjectTaskList> {
                     child: Padding(
                       padding: const EdgeInsets.all(12),
                       child: Text(task['assigned_to']?['full_name'] ?? 'Unassigned'),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+
+        // Created By column with hover effect
+        Builder(
+          builder: (context) {
+            return MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.transparent),
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => _showTaskDetailDialog(task),
+                    hoverColor: priorityColor.withAlpha(25),
+                    splashColor: priorityColor.withAlpha(50),
+                    borderRadius: BorderRadius.circular(4),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: task['created_by'] != null
+                        ? Text(task['created_by']['full_name'] ?? 'Unknown')
+                        : const Text('Unknown', style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey)),
                     ),
                   ),
                 ),
@@ -834,11 +967,20 @@ class ProjectTaskListState extends State<ProjectTaskList> {
   Future<void> _uploadFile(int taskId) async {
     Map<String, dynamic>? currentTask;
 
-    // Find the current task from _tasks list
-    for (var task in _tasks) {
+    // Find the current task from active or completed tasks
+    for (var task in _activeTasks) {
       if (task['id'] == taskId) {
         currentTask = Map<String, dynamic>.from(task);
         break;
+      }
+    }
+
+    if (currentTask == null) {
+      for (var task in _completedTasks) {
+        if (task['id'] == taskId) {
+          currentTask = Map<String, dynamic>.from(task);
+          break;
+        }
       }
     }
 
@@ -959,10 +1101,22 @@ class ProjectTaskListState extends State<ProjectTaskList> {
 
         // Find the updated task with fresh data
         Map<String, dynamic>? updatedTask;
-        for (var task in _tasks) {
+
+        // Check in active tasks
+        for (var task in _activeTasks) {
           if (task['id'] == taskId) {
             updatedTask = Map<String, dynamic>.from(task);
             break;
+          }
+        }
+
+        // If not found, check in completed tasks
+        if (updatedTask == null) {
+          for (var task in _completedTasks) {
+            if (task['id'] == taskId) {
+              updatedTask = Map<String, dynamic>.from(task);
+              break;
+            }
           }
         }
 
@@ -1387,7 +1541,7 @@ class ProjectTaskListState extends State<ProjectTaskList> {
         ] else if (_error != null) ...[
           const SizedBox(height: 24),
           Center(child: Text(_error!, style: const TextStyle(color: Colors.red))),
-        ] else if (_tasks.isEmpty) ...[
+        ] else if (_activeTasks.isEmpty && _completedTasks.isEmpty) ...[
           const SizedBox(height: 24),
           const Center(
             child: Text('No tasks available.', style: TextStyle(fontSize: 16, color: Colors.black54)),
@@ -1397,39 +1551,139 @@ class ProjectTaskListState extends State<ProjectTaskList> {
           Flexible(
             fit: FlexFit.loose,
             child: SingleChildScrollView(
-              child: Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Table(
-                  columnWidths: const {
-                    0: FlexColumnWidth(3),
-                    1: FlexColumnWidth(3),
-                    2: FlexColumnWidth(2),
-                    3: FlexColumnWidth(2),
-                  },
-                  border: TableBorder(
-                    horizontalInside: BorderSide(color: Colors.grey.shade300),
-                    bottom: BorderSide(color: Colors.grey.shade300),
-                  ),
-                  children: [
-                    // Header row
-                    TableRow(
-                      decoration: BoxDecoration(color: Colors.indigo[50]),
-                      children: const [
-                        Padding(padding: EdgeInsets.all(12), child: Text('Title', style: TextStyle(fontWeight: FontWeight.bold))),
-                        Padding(padding: EdgeInsets.all(12), child: Text('Assigned To', style: TextStyle(fontWeight: FontWeight.bold))),
-                        Padding(padding: EdgeInsets.all(12), child: Text('Priority', style: TextStyle(fontWeight: FontWeight.bold))),
-                        Padding(padding: EdgeInsets.all(12), child: Text('Due Date', style: TextStyle(fontWeight: FontWeight.bold))),
-                      ],
+              padding: const EdgeInsets.only(bottom: 24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Active Tasks Section
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16.0),
+                    child: Text(
+                      'Active Tasks',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue[800],
+                      ),
                     ),
-                    // Data rows
-                    for (var task in _tasks)
-                      _buildHoverableTableRow(task),
-                  ],
-                ),
+                  ),
+
+                  // Active Tasks Table
+                  _activeTasks.isEmpty
+                      ? const Padding(
+                          padding: EdgeInsets.only(bottom: 24.0),
+                          child: Center(
+                            child: Text(
+                              'No active tasks.',
+                              style: TextStyle(fontSize: 16, color: Colors.black54),
+                            ),
+                          ),
+                        )
+                      : Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.only(bottom: 24.0),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade300),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Table(
+                            columnWidths: const {
+                              0: FlexColumnWidth(0.7), // Checkbox
+                              1: FlexColumnWidth(3.5), // Title - adjusted width
+                              2: FlexColumnWidth(2.2), // Assigned To
+                              3: FlexColumnWidth(2.2), // Created By - new column
+                              4: FlexColumnWidth(1.5), // Priority
+                              5: FlexColumnWidth(1.8), // Due Date
+                            },
+                            border: TableBorder(
+                              horizontalInside: BorderSide(color: Colors.grey.shade300),
+                              bottom: BorderSide(color: Colors.grey.shade300),
+                            ),
+                            children: [
+                              // Header row
+                              TableRow(
+                                decoration: BoxDecoration(color: Colors.indigo[50]),
+                                children: const [
+                                  Padding(padding: EdgeInsets.all(12), child: Text('')), // Checkbox column
+                                  Padding(padding: EdgeInsets.all(12), child: Text('Title', style: TextStyle(fontWeight: FontWeight.bold))),
+                                  Padding(padding: EdgeInsets.all(12), child: Text('Assigned To', style: TextStyle(fontWeight: FontWeight.bold))),
+                                  Padding(padding: EdgeInsets.all(12), child: Text('Created By', style: TextStyle(fontWeight: FontWeight.bold))),
+                                  Padding(padding: EdgeInsets.all(12), child: Text('Priority', style: TextStyle(fontWeight: FontWeight.bold))),
+                                  Padding(padding: EdgeInsets.all(12), child: Text('Due Date', style: TextStyle(fontWeight: FontWeight.bold))),
+                                ],
+                              ),
+                              // Data rows
+                              for (var task in _activeTasks)
+                                _buildHoverableTableRow(task, isCompleted: false),
+                            ],
+                          ),
+                        ),
+
+                  // Completed Tasks Section
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16.0),
+                    child: Text(
+                      'Completed Tasks',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green[800],
+                      ),
+                    ),
+                  ),
+
+                  // Completed Tasks Table
+                  _completedTasks.isEmpty
+                      ? const Padding(
+                          padding: EdgeInsets.only(bottom: 24.0),
+                          child: Center(
+                            child: Text(
+                              'No completed tasks.',
+                              style: TextStyle(fontSize: 16, color: Colors.black54),
+                            ),
+                          ),
+                        )
+                      : Container(
+                          width: double.infinity,
+                          // Add bottom margin to ensure space at the bottom
+                          margin: const EdgeInsets.only(bottom: 24.0),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade300),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Table(
+                            columnWidths: const {
+                              0: FlexColumnWidth(0.7), // Checkbox
+                              1: FlexColumnWidth(3.5), // Title - adjusted width
+                              2: FlexColumnWidth(2.2), // Assigned To
+                              3: FlexColumnWidth(2.2), // Created By - new column
+                              4: FlexColumnWidth(1.5), // Priority
+                              5: FlexColumnWidth(1.8), // Due Date
+                            },
+                            border: TableBorder(
+                              horizontalInside: BorderSide(color: Colors.grey.shade300),
+                              bottom: BorderSide(color: Colors.grey.shade300),
+                            ),
+                            children: [
+                              // Header row
+                              TableRow(
+                                decoration: BoxDecoration(color: Colors.green[50]),
+                                children: const [
+                                  Padding(padding: EdgeInsets.all(12), child: Text('')), // Checkbox column
+                                  Padding(padding: EdgeInsets.all(12), child: Text('Title', style: TextStyle(fontWeight: FontWeight.bold))),
+                                  Padding(padding: EdgeInsets.all(12), child: Text('Assigned To', style: TextStyle(fontWeight: FontWeight.bold))),
+                                  Padding(padding: EdgeInsets.all(12), child: Text('Created By', style: TextStyle(fontWeight: FontWeight.bold))),
+                                  Padding(padding: EdgeInsets.all(12), child: Text('Priority', style: TextStyle(fontWeight: FontWeight.bold))),
+                                  Padding(padding: EdgeInsets.all(12), child: Text('Due Date', style: TextStyle(fontWeight: FontWeight.bold))),
+                                ],
+                              ),
+                              // Data rows
+                              for (var task in _completedTasks)
+                                _buildHoverableTableRow(task, isCompleted: true),
+                            ],
+                          ),
+                        ),
+                ],
               ),
             ),
           ),

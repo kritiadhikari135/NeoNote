@@ -33,6 +33,11 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
   bool _isEditing = false;
   bool _isSaving = false; // To show loading indicator while saving
 
+  // Variables for task completion tracking
+  int _activeTaskCount = 0;
+  int _completedTaskCount = 0;
+  double _completionPercentage = 0.0;
+
   late TextEditingController _titleController;
   late TextEditingController _descriptionController;
 
@@ -42,6 +47,49 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
     _titleController = TextEditingController(text: widget.title);
     _descriptionController = TextEditingController(text: widget.description);
     fetchProjectDetails();
+    _fetchTaskCounts();
+  }
+
+  // Method to fetch task counts and calculate completion percentage
+  Future<void> _fetchTaskCounts() async {
+    try {
+      final token = await LocalStorage.getToken();
+      if (token == null) {
+        setState(() {
+          error = 'Not authenticated';
+        });
+        return;
+      }
+
+      final response = await http.get(
+        Uri.parse('http://127.0.0.1:8000/api/work/projects/${widget.projectId}/tasks/'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final activeTasks = data['active_tasks'] ?? [];
+        final completedTasks = data['completed_tasks'] ?? [];
+
+        setState(() {
+          _activeTaskCount = activeTasks.length;
+          _completedTaskCount = completedTasks.length;
+
+          // Calculate completion percentage
+          final totalTasks = _activeTaskCount + _completedTaskCount;
+          _completionPercentage = totalTasks > 0
+              ? (_completedTaskCount / totalTasks) * 100
+              : 0.0;
+        });
+      }
+    } catch (e) {
+      // Just log the error, don't update UI
+      debugPrint('Error fetching task counts: $e');
+    }
   }
 
   Future<void> fetchProjectDetails() async {
@@ -653,8 +701,104 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                                     height: 1.6,
                                   ),
                                 ),
+                          const SizedBox(height: 24),
+                          // Project completion progress bar
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'Project Progress',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${_completionPercentage.toStringAsFixed(0)}% Complete',
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.blue,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              // Custom styled progress bar
+                              Container(
+                                height: 12,
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade200,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Stack(
+                                  children: [
+                                    // Progress indicator
+                                    FractionallySizedBox(
+                                      widthFactor: _completionPercentage / 100,
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            colors: [
+                                              Colors.blue.shade400,
+                                              Colors.blue.shade700,
+                                            ],
+                                            begin: Alignment.centerLeft,
+                                            end: Alignment.centerRight,
+                                          ),
+                                          borderRadius: BorderRadius.circular(6),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.blue.shade200.withAlpha(100),
+                                              blurRadius: 4,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              // Task count information
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Active Tasks: $_activeTaskCount',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade700,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Completed Tasks: $_completedTaskCount',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+                          const Text(
+                            'Team',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
                           if (!_isEditing && host != null) ...[
-                            const SizedBox(height: 24),
+                            const SizedBox(height: 12),
                             Row(
                               children: [
                                 Icon(Icons.star, size: 18, color: Colors.orange[800]),
@@ -670,15 +814,6 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                               ],
                             ),
                           ],
-                          const SizedBox(height: 32),
-                          const Text(
-                            'Team',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
-                          ),
                           const SizedBox(height: 20),
                           if (isLoading)
                             const Center(
@@ -766,6 +901,10 @@ class _ProjectDetailPageState extends State<ProjectDetailPage> {
                           ProjectTaskList(
                             projectId: widget.projectId,
                             teamMembers: [if (host != null) host!, ...members], // Pass host and members
+                            onTasksUpdated: () {
+                              // Refresh task counts when tasks are updated
+                              _fetchTaskCounts();
+                            },
                           ),
                         ],
                       ),

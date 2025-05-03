@@ -210,7 +210,7 @@ import 'package:project/widgets/custom_scaffold_workspace.dart';
 import 'package:project/work_page.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:math' as math;
+
 import 'package:project/services/local_storage.dart';
 import 'package:project/project_detail_page.dart'; // Import ProjectDetailPage
 
@@ -492,7 +492,7 @@ class _WorkspaceDashboardScreenState extends State<WorkspaceDashboardScreen> {
                           child: Text(
                             project['name'] ?? 'Unnamed Project',
                             style: const TextStyle(
-                              fontSize: 16,
+                              fontSize: 18, // Increased from 16 to 18
                               fontWeight: FontWeight.bold,
                               color: Color(0xFF255DE1), // Blue color
                             ),
@@ -508,10 +508,10 @@ class _WorkspaceDashboardScreenState extends State<WorkspaceDashboardScreen> {
                   Text(
                     project['description'] ?? 'No description provided.',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 14, // Increased from 12 to 14
                       color: (project['description'] == null || project['description'].isEmpty)
                           ? Colors.grey[400]
-                          : Colors.black54,
+                          : Colors.black87, // Darker color for better readability
                     ),
                     maxLines: 2, // Limit description lines
                     overflow: TextOverflow.ellipsis,
@@ -519,27 +519,50 @@ class _WorkspaceDashboardScreenState extends State<WorkspaceDashboardScreen> {
                   const SizedBox(height: 8), // Add some space instead of Spacer
                   // Team Members Section (for this specific project)
                   if (members.isNotEmpty || owner != null)
-                    Wrap(
-                      spacing: 4,
-                      runSpacing: 2,
-                      children: [
-                        // Add owner chip if exists
-                        if (owner != null)
-                          _buildMiniMemberChip(owner['full_name'] ?? 'Owner', isOwner: true),
-                        // Add member chips
-                        ...members.map((member) {
-                          // Avoid duplicating owner if they are also in members list
-                          if (owner != null && member['id'] == owner['id']) {
-                            return const SizedBox.shrink(); // Don't show owner twice
-                          }
-                          return _buildMiniMemberChip(member['full_name'] ?? 'Member');
-                        }).toList(),
-                      ],
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEEEEEE), // Light grey color instead of using withOpacity
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.only(left: 4, bottom: 4),
+                            child: Text(
+                              'Team',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black54,
+                              ),
+                            ),
+                          ),
+                          Wrap(
+                            spacing: 4,
+                            runSpacing: 4,
+                            children: [
+                              // Add owner chip if exists
+                              if (owner != null)
+                                _buildMiniMemberChip(owner['full_name'] ?? 'Owner', isOwner: true),
+                              // Add member chips
+                              ...members.map((member) {
+                                // Avoid duplicating owner if they are also in members list
+                                if (owner != null && member['id'] == owner['id']) {
+                                  return const SizedBox.shrink(); // Don't show owner twice
+                                }
+                                return _buildMiniMemberChip(member['full_name'] ?? 'Member');
+                              }),
+                            ],
+                          ),
+                        ],
+                      ),
                     )
                   else
                     const Text(
                       'No members yet',
-                      style: TextStyle(fontSize: 10, color: Colors.grey),
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                   const SizedBox(height: 4), // Small spacing at the bottom
                 ],
@@ -554,15 +577,24 @@ class _WorkspaceDashboardScreenState extends State<WorkspaceDashboardScreen> {
   // Helper widget for mini member chips within the project card
   Widget _buildMiniMemberChip(String name, {bool isOwner = false}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      margin: const EdgeInsets.only(right: 4, bottom: 4), // Add spacing between chips
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), // Increased padding
       decoration: BoxDecoration(
-        color: (isOwner ? Colors.orange[100] : const Color(0xFF255DE1).withOpacity(0.1)),
+        color: (isOwner ? Colors.orange[100] : const Color(0xFFE6EFFF)), // Light blue color instead of using withOpacity
         borderRadius: BorderRadius.circular(8),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1A000000), // 10% opacity black
+            spreadRadius: 1,
+            blurRadius: 2,
+            offset: Offset(0, 1),
+          ),
+        ],
       ),
       child: Text(
         name,
         style: TextStyle(
-          fontSize: 10, // Smaller font size
+          fontSize: 12, // Increased from 10 to 12
           color: (isOwner ? Colors.orange[800] : const Color(0xFF255DE1)),
           fontWeight: isOwner ? FontWeight.bold : FontWeight.normal,
         ),
@@ -574,33 +606,150 @@ class _WorkspaceDashboardScreenState extends State<WorkspaceDashboardScreen> {
 
   Widget _buildTeamMembersList() {
     // This list shows OVERALL members across all projects
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _overallTeamMembers.length, // Use the actual count of unique members
-      itemBuilder: (context, index) {
-        final member = _overallTeamMembers[index];
+    return Column(
+      children: _overallTeamMembers.map((member) {
         final String fullName = member['full_name'] ?? 'Unknown User';
-        final String initials = fullName.isNotEmpty
-            ? fullName.trim().split(' ').map((e) => e[0]).take(2).join().toUpperCase()
-            : 'U';
+        final String email = member['email'] ?? 'No email';
 
-        return ListTile(
-          leading: CircleAvatar(
-            backgroundColor: Colors.primaries[math.Random().nextInt(Colors.primaries.length)], // Use Random color
-            child: Text(
-              initials,
-              style: const TextStyle(color: Colors.white),
+        // Generate a color based on the name
+        final int nameHash = fullName.hashCode.abs();
+        final List<Color> colors = [
+          const Color(0xFF3366FF), // Blue
+          const Color(0xFF6C63FF), // Indigo
+          const Color(0xFF8A4FFF), // Purple
+          const Color(0xFFFF6B6B), // Red
+          const Color(0xFFFF9F43), // Orange
+          const Color(0xFF1DD1A1), // Green
+          const Color(0xFF00CCFF), // Cyan
+        ];
+        final Color themeColor = colors[nameHash % colors.length];
+
+        // Get initials for avatar
+        final String initials = fullName.isNotEmpty
+            ? fullName.trim().split(' ').map((e) => e.isNotEmpty ? e[0] : '').take(2).join().toUpperCase()
+            : '?';
+
+        // Create a modern card for each team member
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 16.0),
+          child: Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: themeColor.withAlpha(20),
+                  spreadRadius: 2,
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {
+                    // Could add action here in the future
+                  },
+                  splashColor: themeColor.withAlpha(50),
+                  highlightColor: themeColor.withAlpha(20),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Row(
+                      children: [
+                        // Avatar with initials
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                themeColor,
+                                Color.lerp(themeColor, Colors.white, 0.3) ?? themeColor,
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Center(
+                            child: Text(
+                              initials,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        // User info
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Name
+                              Text(
+                                fullName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              // Email with icon
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.email_outlined,
+                                    size: 14,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      email,
+                                      style: TextStyle(
+                                        color: Colors.grey.shade700,
+                                        fontSize: 14,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Action button
+                        IconButton(
+                          icon: Icon(
+                            Icons.message_outlined,
+                            color: themeColor,
+                            size: 20,
+                          ),
+                          onPressed: () {
+                            // Message action
+                          },
+                          tooltip: 'Send message',
+                          splashRadius: 24,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
-          title: Text(fullName),
-          subtitle: Text(member['email'] ?? 'No email'), // Display email or other info if available
-          trailing: IconButton(
-            icon: const Icon(Icons.message),
-            onPressed: () { /* TODO: Implement direct message functionality */ }, // Removed extra closing parenthesis and comma
-          ),
         );
-      },
+      }).toList(),
     );
   }
 }

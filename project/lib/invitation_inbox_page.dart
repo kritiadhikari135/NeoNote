@@ -43,6 +43,9 @@ class _InvitationInboxPageState extends State<InvitationInboxPage> with SingleTi
   }
 
   void _handleTabChange() {
+    // Force UI update when tab changes to update the tab indicator
+    setState(() {});
+
     // If the user switches to the "Sent" tab (index 1), mark responses as read
     if (_tabController.index == 1 && _unreadResponses > 0) {
       // Only mark invitation notifications as read
@@ -177,7 +180,7 @@ class _InvitationInboxPageState extends State<InvitationInboxPage> with SingleTi
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final url = '$baseUrl/api/work/invitations/?include_sent=true&t=$timestamp';
 
-      print('📡 Fetching invitations directly...');
+      // Fetch invitations directly
 
       // Make a direct request
       final response = await http.get(
@@ -659,43 +662,87 @@ class _InvitationInboxPageState extends State<InvitationInboxPage> with SingleTi
                               color: Colors.grey[800],
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: TabBar(
-                              controller: _tabController,
-                              tabs: [
-                                const Tab(text: 'Received'),
-                                Tab(
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Text('Sent'),
-                                      if (_unreadResponses > 0) ...[
-                                        const SizedBox(width: 4),
-                                        Container(
-                                          padding: const EdgeInsets.all(4),
-                                          decoration: const BoxDecoration(
-                                            color: Colors.amber,
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: Text(
-                                            _unreadResponses.toString(),
-                                            style: const TextStyle(
-                                              color: Colors.black,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.bold,
-                                            ),
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                return TabBar(
+                                  controller: _tabController,
+                                  // Set indicator weight to 0 to hide the default indicator
+                                  indicatorWeight: 0,
+                                  // Set indicator padding to 0 to ensure full coverage
+                                  indicatorPadding: EdgeInsets.zero,
+                                  // Set label padding to ensure consistent spacing
+                                  labelPadding: EdgeInsets.zero,
+                                  // Use indicator size to fixed to ensure it covers exactly 50%
+                                  indicatorSize: TabBarIndicatorSize.tab,
+                                  tabs: [
+                                    // Custom tab with fixed width (50% of container)
+                                    Container(
+                                      width: constraints.maxWidth / 2,
+                                      decoration: BoxDecoration(
+                                        color: _tabController.index == 0
+                                            ? const Color(0xFF255DE1)
+                                            : Colors.transparent,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      child: const Center(
+                                        child: Text(
+                                          'Received',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
                                           ),
                                         ),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                              ],
-                              indicator: BoxDecoration(
-                                color: const Color(0xFF255DE1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              labelColor: Colors.white,
-                              unselectedLabelColor: Colors.grey[300],
+                                      ),
+                                    ),
+                                    // Custom tab with fixed width (50% of container)
+                                    Container(
+                                      width: constraints.maxWidth / 2,
+                                      decoration: BoxDecoration(
+                                        color: _tabController.index == 1
+                                            ? const Color(0xFF255DE1)
+                                            : Colors.transparent,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      child: Center(
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Text(
+                                              'Sent',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            if (_unreadResponses > 0) ...[
+                                              const SizedBox(width: 4),
+                                              Container(
+                                                padding: const EdgeInsets.all(4),
+                                                decoration: const BoxDecoration(
+                                                  color: Colors.amber,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                child: Text(
+                                                  _unreadResponses.toString(),
+                                                  style: const TextStyle(
+                                                    color: Colors.black,
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                  // Set empty indicator to use our custom indicators
+                                  indicator: const BoxDecoration(),
+                                  labelColor: Colors.white,
+                                  unselectedLabelColor: Colors.grey[300],
+                                );
+                              },
                             ),
                           ),
                           const SizedBox(height: 16),
