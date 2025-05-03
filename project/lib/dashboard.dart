@@ -55,6 +55,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // Fetch upcoming calendar events
   Future<void> _fetchUpcomingEvents() async {
+    // Check if mounted before setting initial loading state
+    if (!mounted) return;
+
     try {
       print('Starting to fetch upcoming events');
       setState(() {
@@ -63,6 +66,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       // Get upcoming events (limit to 5 dates, showing all events per date)
       final events = await _calendarService.getUpcomingEvents(limit: 5);
+
+      // Check if still mounted after async operation
+      if (!mounted) return;
 
       print('Dashboard received ${events.length} upcoming events');
       if (events.isNotEmpty) {
@@ -90,6 +96,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         print('No upcoming events received');
       }
 
+      // Check if still mounted before updating state
+      if (!mounted) return;
+
       setState(() {
         _upcomingEvents = events;
         _isLoadingEvents = false;
@@ -97,6 +106,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } catch (e) {
       print('Error fetching upcoming events: $e');
       print('Stack trace: ${StackTrace.current}');
+
+      // Check if still mounted before updating state
+      if (!mounted) return;
+
       setState(() {
         _isLoadingEvents = false;
       });
@@ -117,6 +130,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // Fetch recent diary entries
   Future<void> _fetchRecentDiaries() async {
+    // Check if mounted before setting initial loading state
+    if (!mounted) return;
+
     try {
       setState(() {
         _isLoadingDiaries = true;
@@ -127,6 +143,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       // Fetch all diary entries
       final entries = await diaryService.getAllEntries();
+
+      // Check if still mounted after async operation
+      if (!mounted) return;
 
       // Sort entries by updated_at or created_at in descending order (newest first)
       entries.sort((a, b) {
@@ -149,6 +168,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         'template': entry.template,
       }).toList();
 
+      // Check if still mounted before updating state
+      if (!mounted) return;
+
       setState(() {
         _recentDiaries = recentDiaries;
         _isLoadingDiaries = false;
@@ -157,6 +179,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       print('Fetched ${_recentDiaries.length} recent diary entries');
     } catch (e) {
       print('Error fetching recent diaries: $e');
+
+      // Check if still mounted before updating state
+      if (!mounted) return;
+
       setState(() {
         _isLoadingDiaries = false;
       });
@@ -263,50 +289,72 @@ Future<void> _openDiary(dynamic diary) async {
 
 
 Future<void> _logout() async {
-  // Clear token from SharedPreferences
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.remove('access_token');
-  await prefs.remove('user_pages'); // Remove token from SharedPreferences
+  // Check if mounted before starting logout process
+  if (!mounted) return;
 
-  // Clear token from LocalStorage (flutter_secure_storage)
-  await LocalStorage.clearToken(); // Assuming LocalStorage handles secure storage
-
-  // Clear cached user ID
-  UserService.clearCachedUserId();
-  print('✅ Cleared cached user ID');
-
-  // Clear any cached data or pages
-  setState(() {
-    _fullName = 'Loading...';  // Reset user data
-    _pages = [];  // Clear cached pages or session data
-  });
-
-  // Clear in-memory data using providers
-  Provider.of<PagesProvider>(context, listen: false).clearPages();
-  print('✅ Cleared pages from PagesProvider');
-
-  // Clear notifications
   try {
+    // Clear token from SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('access_token');
+    await prefs.remove('user_pages'); // Remove token from SharedPreferences
+
+    // Clear token from LocalStorage (flutter_secure_storage)
+    await LocalStorage.clearToken(); // Assuming LocalStorage handles secure storage
+
+    // Clear cached user ID
+    UserService.clearCachedUserId();
+    print('✅ Cleared cached user ID');
+
+    // Check if still mounted before updating state
+    if (!mounted) return;
+
+    // Clear any cached data or pages
+    setState(() {
+      _fullName = 'Loading...';  // Reset user data
+      _pages = [];  // Clear cached pages or session data
+    });
+
+    // Store providers locally to avoid BuildContext across async gaps
+    final pagesProvider = Provider.of<PagesProvider>(context, listen: false);
     final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
-    await notificationProvider.clearNotifications();
-    print('✅ Cleared notifications from NotificationProvider');
+
+    // Clear in-memory data using providers
+    pagesProvider.clearPages();
+    print('✅ Cleared pages from PagesProvider');
+
+    // Clear notifications
+    try {
+      await notificationProvider.clearNotifications();
+      print('✅ Cleared notifications from NotificationProvider');
+    } catch (e) {
+      print('⚠️ Error clearing notifications: $e');
+    }
+
+    // Check if token was cleared from LocalStorage
+    String? storedToken = await LocalStorage.getToken();
+    print("Token after logout: $storedToken");  // Should print null after logout
+
+    // Optionally, check if the token is also cleared from SharedPreferences (for debug purposes)
+    String? storedPrefToken = prefs.getString('access_token');
+    print("Token from SharedPreferences after logout: $storedPrefToken");
+
+    String? storedPages = prefs.getString('user_pages');
+    print("Stored pages after logout: $storedPages");  // Should print null after logout
+
+    // Check if still mounted before redirecting
+    if (!mounted) return;
+
+    // Redirect to login page
+    _redirectToLogin();
   } catch (e) {
-    print('⚠️ Error clearing notifications: $e');
+    print('Error during logout: $e');
+
+    // Check if still mounted before redirecting
+    if (!mounted) return;
+
+    // Redirect to login page anyway in case of error
+    _redirectToLogin();
   }
-
-  // Check if token was cleared from LocalStorage
-  String? storedToken = await LocalStorage.getToken();
-  print("Token after logout: $storedToken");  // Should print null after logout
-
-  // Optionally, check if the token is also cleared from SharedPreferences (for debug purposes)
-  String? storedPrefToken = prefs.getString('access_token');
-  print("Token from SharedPreferences after logout: $storedPrefToken");
-
-  String? storedPages = prefs.getString('user_pages');
-  print("Stored pages after logout: $storedPages");  // Should print null after logout
-
-  // Redirect to login page
-  _redirectToLogin();
 }
 
 // Helper method to clean title text that might be in JSON format

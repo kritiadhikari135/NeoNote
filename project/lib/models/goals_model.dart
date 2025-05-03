@@ -1,5 +1,7 @@
 
 import 'dart:convert';
+import 'package:project/services/goal_service.dart';
+import 'package:project/services/goal_task.dart';
 
 
 class Goal {
@@ -47,11 +49,6 @@ class Goal {
 
       // Create a DateTime object from the string
       reminderDateTime = DateTime.parse(reminderDateTimeStr);
-
-      final now = DateTime.now();
-      // print('GOAL MODEL - Parsed reminder date time: ${reminderDateTime.toString()}');
-      // print('GOAL MODEL - Reminder time zone offset: ${reminderDateTime.timeZoneOffset}');
-      // print('GOAL MODEL - Current time: ${now.toString()}');
       // print('GOAL MODEL - Current time zone offset: ${now.timeZoneOffset}');
       // print('GOAL MODEL - Time difference: ${reminderDateTime.difference(now)}');
       // print('GOAL MODEL - Time difference in minutes: ${reminderDateTime.difference(now).inMinutes}');
@@ -83,10 +80,88 @@ class Goal {
     return jsonData.map((json) => Goal.fromJson(json)).toList();
   }
 
+  // Method to fetch tasks if needed
+  Future<void> fetchTasksIfNeeded() async {
+    // Always fetch the latest tasks to ensure we have up-to-date data
+    try {
+      final updatedGoal = await GoalService.fetchGoalById(id);
+
+      // Update tasks regardless of whether they were empty before
+      tasks = updatedGoal.tasks;
+
+      // If we still have no tasks, try to fetch them directly using the GoalTaskService
+      if (tasks.isEmpty) {
+        try {
+          final taskService = GoalTaskService();
+          final taskMap = await taskService.fetchTasksForGoal(id);
+
+          List<GoalTask> allTasks = [];
+
+          // Convert active tasks to GoalTask objects
+          if (taskMap["active"] != null) {
+            for (var task in taskMap["active"]!) {
+              allTasks.add(GoalTask(
+                id: task.id,
+                title: task.title,
+                status: task.status,
+                priority: task.priority,
+                dueDate: task.dueDate.isNotEmpty ? DateTime.parse(task.dueDate) : null,
+                dateCreated: DateTime.parse(task.dateCreated),
+                goal: id,
+                hasReminder: task.hasReminder,
+                reminderDateTime: task.reminderDateTime,
+              ));
+            }
+          }
+
+          // Convert completed tasks to GoalTask objects
+          if (taskMap["completed"] != null) {
+            for (var task in taskMap["completed"]!) {
+              allTasks.add(GoalTask(
+                id: task.id,
+                title: task.title,
+                status: task.status,
+                priority: task.priority,
+                dueDate: task.dueDate.isNotEmpty ? DateTime.parse(task.dueDate) : null,
+                dateCreated: DateTime.parse(task.dateCreated),
+                goal: id,
+                hasReminder: task.hasReminder,
+                reminderDateTime: task.reminderDateTime,
+              ));
+            }
+          }
+
+          // Update the tasks list
+          tasks = allTasks;
+        } catch (directFetchError) {
+          // Silently handle errors
+        }
+      }
+    } catch (e) {
+      // Silently handle errors
+    }
+  }
+
   double completionPercentage() {
-    if (tasks.isEmpty) return 0;
-    int completedTasks = tasks.where((task) => task.status == 'completed').length;
-    return (completedTasks / tasks.length) * 100;
+    // If this is a completed goal, return 100%
+    if (isCompleted) return 100.0;
+
+    // Count completed tasks
+    int completedTasks = 0;
+    int totalTasks = tasks.length;
+
+    // If there are no tasks, return 0
+    if (totalTasks == 0) return 0.0;
+
+    for (var task in tasks) {
+      if (task.status == 'completed') {
+        completedTasks++;
+      }
+    }
+
+    // Calculate percentage and ensure it's between 0 and 100
+    double percentage = (completedTasks / totalTasks) * 100;
+    return percentage.clamp(0.0, 100.0);
   }
 }
 
@@ -120,7 +195,7 @@ class GoalTask {
       try {
         reminderDateTime = DateTime.parse(json['reminder_date_time']);
       } catch (e) {
-        print('Error parsing reminder date time: $e');
+        // Silently handle parsing errors
       }
     }
 

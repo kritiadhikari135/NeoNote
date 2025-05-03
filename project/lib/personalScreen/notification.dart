@@ -219,7 +219,9 @@ class _NotificationPageState extends State<NotificationPage> {
             Expanded(
               child: Consumer<NotificationProvider>(
                 builder: (context, notificationProvider, child) {
-                  final notifications = notificationProvider.notifications;
+                  // Get only notifications that should be visible (due now or in the past)
+                  final notifications = notificationProvider.visibleNotifications;
+                  final allNotifications = notificationProvider.notifications;
 
                   // Show full-screen loading indicator while fetching notifications
                   if (_isLoading) {
@@ -287,66 +289,23 @@ class _NotificationPageState extends State<NotificationPage> {
                     );
                   }
 
-                  // Check if there are any visible notifications (past due or without due date)
-                  bool hasVisibleNotifications = false;
-                  for (var notification in notifications) {
-                    if (notification.dueDateTime == null) {
-                      // Notifications without due date are always visible
-                      hasVisibleNotifications = true;
-                      break;
-                    }
-
-                    // Check if notification is due now or in the past
-                    final now = DateTime.now();
-                    final dueDateTime = notification.dueDateTime!;
-
-                    // Compare year, month, day, hour, and minute directly
-                    bool isPastOrDueNow = false;
-
-                    // If it's a past year
-                    if (dueDateTime.year < now.year) {
-                      isPastOrDueNow = true;
-                    }
-                    // If it's the same year but past month
-                    else if (dueDateTime.year == now.year && dueDateTime.month < now.month) {
-                      isPastOrDueNow = true;
-                    }
-                    // If it's the same year and month but past day
-                    else if (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day < now.day) {
-                      isPastOrDueNow = true;
-                    }
-                    // If it's the same day, compare hour and minute
-                    else if (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day == now.day) {
-                      // Calculate total minutes for easier comparison
-                      int dueMinutes = (dueDateTime.hour * 60) + dueDateTime.minute;
-                      int nowMinutes = (now.hour * 60) + now.minute;
-
-                      // Show if due time is earlier than or equal to current time
-                      isPastOrDueNow = dueMinutes <= nowMinutes;
-                    }
-
-                    if (isPastOrDueNow) {
-                      hasVisibleNotifications = true;
-                      break;
-                    }
-                  }
-
-                  // Show empty state if no visible notifications
-                  if (!hasVisibleNotifications && notifications.isNotEmpty) {
+                  // Show empty state if no visible notifications but there are upcoming ones
+                  final upcomingCount = allNotifications.length - notifications.length;
+                  if (notifications.isEmpty && upcomingCount > 0) {
                     return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(
+                          const Icon(
                             Icons.notifications_paused,
                             size: 64,
                             color: Colors.grey,
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            'No notifications to display yet\nYou have ${notifications.length} upcoming notification${notifications.length > 1 ? 's' : ''}',
+                            'No notifications to display yet\nYou have $upcomingCount upcoming notification${upcomingCount > 1 ? 's' : ''}',
                             textAlign: TextAlign.center,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 18,
                               color: Colors.grey,
                             ),
@@ -362,54 +321,8 @@ class _NotificationPageState extends State<NotificationPage> {
                     itemBuilder: (context, index) {
                       final notification = notifications[index];
 
-                      // Check if notification should be displayed
-                      final now = DateTime.now();
-                      bool shouldShow = true;
-
-                      if (notification.dueDateTime != null) {
-                        // Get the due date time
-                        DateTime dueDateTime = notification.dueDateTime!;
-
-                        // Debug print - commented out to reduce console output
-                        // print('NOTIFICATION FILTER - ID: ${notification.id}, Title: ${notification.title}');
-                        // print('NOTIFICATION FILTER - Due: ${dueDateTime.toString()}, Now: ${now.toString()}');
-
-                        // Compare year, month, day, hour, and minute directly
-                        bool isPastOrDueNow = false;
-
-                        // If it's a past year
-                        if (dueDateTime.year < now.year) {
-                          isPastOrDueNow = true;
-                        }
-                        // If it's the same year but past month
-                        else if (dueDateTime.year == now.year && dueDateTime.month < now.month) {
-                          isPastOrDueNow = true;
-                        }
-                        // If it's the same year and month but past day
-                        else if (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day < now.day) {
-                          isPastOrDueNow = true;
-                        }
-                        // If it's the same day, compare hour and minute
-                        else if (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day == now.day) {
-                          // Calculate total minutes for easier comparison
-                          int dueMinutes = (dueDateTime.hour * 60) + dueDateTime.minute;
-                          int nowMinutes = (now.hour * 60) + now.minute;
-
-                          // Show if due time is earlier than or equal to current time
-                          isPastOrDueNow = dueMinutes <= nowMinutes;
-                        }
-
-                        shouldShow = isPastOrDueNow;
-                        // print('NOTIFICATION FILTER - Should show: $shouldShow');
-                      }
-
-                      // If notification should not be shown, return an empty container
-                      if (!shouldShow) {
-                        // print('NOTIFICATION LIST - Hiding notification ID: ${notification.id}, Title: ${notification.title} (not past due yet)');
-                        return const SizedBox.shrink();
-                      }
-
-                      // print('NOTIFICATION LIST - Showing notification ID: ${notification.id}, Title: ${notification.title} (past due or no due date)');
+                      // No need to check if notification should be displayed
+                      // We're already filtering them in the visibleNotifications getter
 
                       return _buildNotificationCard(context, notification);
                     },

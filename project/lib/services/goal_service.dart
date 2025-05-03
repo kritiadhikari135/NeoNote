@@ -84,7 +84,25 @@ class GoalService {
         case 200:
           List<dynamic> data = json.decode(response.body);
           print('✅ Successfully fetched ${data.length} goals');
-          return data.map((json) => Goal.fromJson(json)).toList();
+
+          // Convert the JSON data to Goal objects
+          List<Goal> goals = data.map((json) => Goal.fromJson(json)).toList();
+
+          // Fetch the latest task information for each goal
+          List<Goal> updatedGoals = [];
+          for (var goal in goals) {
+            try {
+              // Fetch the latest goal data with updated task information
+              Goal updatedGoal = await fetchGoalById(goal.id);
+              updatedGoals.add(updatedGoal);
+            } catch (e) {
+              // If fetching the updated goal fails, use the original goal
+              updatedGoals.add(goal);
+              print('Warning: Could not fetch updated task information for goal ${goal.id}: $e');
+            }
+          }
+
+          return updatedGoals;
 
         case 401:
           print('🔒 Authentication failed. Token might be expired.');
@@ -236,12 +254,45 @@ class GoalService {
         headers: headers,
       );
 
-      print('📥 Response status: ${response.statusCode}');
-      print('📥 Response body: ${response.body}');
-
       if (response.statusCode == 200) {
         print('✅ Goal fetched successfully');
-        return Goal.fromJson(json.decode(response.body));
+        Goal goal = Goal.fromJson(json.decode(response.body));
+
+        // Fetch tasks for this goal to ensure we have the latest task data
+        try {
+          // Use the correct endpoint for fetching tasks
+          final taskResponse = await http.get(
+            Uri.parse('$baseUrl/goals/$goalId/tasks/'),
+            headers: headers,
+          );
+
+          if (taskResponse.statusCode == 200) {
+            final taskData = json.decode(taskResponse.body);
+            List<GoalTask> allTasks = [];
+
+            // Add active tasks
+            if (taskData['active_tasks'] != null) {
+              for (var task in taskData['active_tasks']) {
+                allTasks.add(GoalTask.fromJson(task));
+              }
+            }
+
+            // Add completed tasks
+            if (taskData['completed_tasks'] != null) {
+              for (var task in taskData['completed_tasks']) {
+                allTasks.add(GoalTask.fromJson(task));
+              }
+            }
+
+            // Update the goal's tasks
+            goal.tasks = allTasks;
+          }
+        } catch (taskError) {
+          print('⚠️ Error fetching tasks for goal: $taskError');
+          // Continue with the goal even if task fetching fails
+        }
+
+        return goal;
       } else if (response.statusCode == 401) {
         print('🔒 Authentication failed. Token might be expired.');
         await LocalStorage.clearToken();

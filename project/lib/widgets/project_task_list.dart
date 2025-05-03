@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:typed_data'; // For Uint8List
+import 'dart:async'; // For Completer
 import 'package:project/services/local_storage.dart';
 import 'package:intl/intl.dart'; // For date formatting
 import 'package:file_picker/file_picker.dart'; // For picking files
@@ -566,6 +567,37 @@ class ProjectTaskListState extends State<ProjectTaskList> {
                     ),
                   ),
                 ),
+              ),
+            );
+          },
+        ),
+
+        // Actions column with edit and delete icons
+        Builder(
+          builder: (context) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Edit icon
+                  IconButton(
+                    icon: const Icon(Icons.edit, color: Colors.blue, size: 20),
+                    padding: const EdgeInsets.all(4),
+                    constraints: const BoxConstraints(),
+                    tooltip: 'Edit Task',
+                    onPressed: () => _editTask(task),
+                  ),
+                  const SizedBox(width: 8),
+                  // Delete icon
+                  IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                    padding: const EdgeInsets.all(4),
+                    constraints: const BoxConstraints(),
+                    tooltip: 'Delete Task',
+                    onPressed: () => _showDeleteConfirmationDialog(task),
+                  ),
+                ],
               ),
             );
           },
@@ -1187,6 +1219,355 @@ class ProjectTaskListState extends State<ProjectTaskList> {
     );
   }
 
+  // Method to show delete confirmation dialog
+  void _showDeleteConfirmationDialog(Map<String, dynamic> task) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Delete Task', style: TextStyle(color: Colors.red)),
+          content: Text('Are you sure you want to delete "${task['title']}"?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+                _deleteTask(task);
+              },
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Method to delete a task
+  Future<void> _deleteTask(Map<String, dynamic> task) async {
+    // Create a local variable to track if the dialog is showing
+    bool isDialogShowing = false;
+
+    if (mounted) {
+      // Show the loading dialog
+      isDialogShowing = true;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext ctx) {
+          return const AlertDialog(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Deleting task...'),
+              ],
+            ),
+          );
+        },
+      );
+    }
+
+    try {
+      final token = await LocalStorage.getToken();
+      if (token == null) {
+        // Close dialog if it's showing
+        if (isDialogShowing && mounted) {
+          Navigator.of(context).pop();
+          isDialogShowing = false;
+        }
+
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Not authenticated')),
+        );
+        return;
+      }
+
+      final response = await http.delete(
+        Uri.parse('http://127.0.0.1:8000/api/work/projects/${widget.projectId}/tasks/${task['id']}/'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 15));
+
+      // Close loading dialog
+      if (isDialogShowing && mounted) {
+        Navigator.of(context).pop();
+        isDialogShowing = false;
+      }
+
+      if (!mounted) return;
+
+      if (response.statusCode == 204 || response.statusCode == 200) {
+        // Success
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Task deleted successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Refresh the task lists
+        await _fetchProjectTasks();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete task: ${response.statusCode}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      // Close loading dialog if it's still showing
+      if (isDialogShowing && mounted) {
+        Navigator.of(context).pop();
+        isDialogShowing = false;
+      }
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error deleting task: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // Method to edit a task
+  void _editTask(Map<String, dynamic> task) {
+    final titleController = TextEditingController(text: task['title']);
+    int? selectedAssigneeId = task['assigned_to']?['id'];
+    String? selectedPriority = task['priority']?.toString().capitalize();
+    DateTime? dueDate;
+
+    // Parse due date
+    if (task['due_date'] != null && task['due_date'].toString().isNotEmpty) {
+      try {
+        dueDate = DateFormat('yyyy-MM-dd').parse(task['due_date']);
+      } catch (e) {
+        debugPrint('Error parsing due date: $e');
+        dueDate = DateTime.now();
+      }
+    } else {
+      dueDate = DateTime.now();
+    }
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              title: const Text('Edit Task'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: titleController,
+                      decoration: const InputDecoration(labelText: 'Task Title'),
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<int>(
+                      value: selectedAssigneeId,
+                      onChanged: (value) => setModalState(() => selectedAssigneeId = value),
+                      items: widget.teamMembers.map((m) => DropdownMenuItem<int>(
+                        value: m['id'],
+                        child: Text(m['full_name']),
+                      )).toList(),
+                      decoration: const InputDecoration(labelText: 'Assign To'),
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: selectedPriority,
+                      onChanged: (value) => setModalState(() => selectedPriority = value),
+                      items: ['Low', 'Medium', 'High']
+                          .map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
+                      decoration: const InputDecoration(labelText: 'Priority'),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(dueDate == null
+                              ? 'Select Due Date'
+                              : 'Due: ${DateFormat.yMd().format(dueDate!)}'),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.calendar_today),
+                          onPressed: () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate: dueDate ?? DateTime.now(),
+                              firstDate: DateTime.now().subtract(const Duration(days: 365)), // Allow past dates for editing
+                              lastDate: DateTime(2100),
+                            );
+                            if (picked != null) {
+                              setModalState(() => dueDate = picked);
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+                ElevatedButton(
+                  onPressed: () {
+                    if (titleController.text.isNotEmpty && selectedPriority != null && dueDate != null) {
+                      _updateTask(
+                        task['id'],
+                        titleController.text,
+                        selectedAssigneeId,
+                        selectedPriority!.toLowerCase(),
+                        dueDate!,
+                      );
+                      Navigator.pop(context);
+                    } else {
+                      // Check if mounted before using context
+                      if (!mounted) return;
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please fill all fields'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  },
+                  child: const Text('Save Changes'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Method to update a task
+  Future<void> _updateTask(
+    int taskId,
+    String title,
+    int? assignedToId,
+    String priority,
+    DateTime dueDate,
+  ) async {
+    // Create a local variable to track if the dialog is showing
+    bool isDialogShowing = false;
+
+    if (mounted) {
+      // Show the loading dialog
+      isDialogShowing = true;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext ctx) {
+          return const AlertDialog(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Updating task...'),
+              ],
+            ),
+          );
+        },
+      );
+    }
+
+    try {
+      final token = await LocalStorage.getToken();
+      if (token == null) {
+        // Close dialog if it's showing
+        if (isDialogShowing && mounted) {
+          Navigator.of(context).pop();
+          isDialogShowing = false;
+        }
+
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Not authenticated')),
+        );
+        return;
+      }
+
+      final response = await http.patch(
+        Uri.parse('http://127.0.0.1:8000/api/work/projects/${widget.projectId}/tasks/$taskId/'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'title': title,
+          'assigned_to_id': assignedToId,
+          'priority': priority,
+          'due_date': DateFormat('yyyy-MM-dd').format(dueDate),
+        }),
+      ).timeout(const Duration(seconds: 15));
+
+      // Close loading dialog
+      if (isDialogShowing && mounted) {
+        Navigator.of(context).pop();
+        isDialogShowing = false;
+      }
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200) {
+        // Success
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Task updated successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Refresh the task lists
+        await _fetchProjectTasks();
+      } else {
+        final errorData = json.decode(response.body);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update task: ${errorData.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      // Close loading dialog if it's still showing
+      if (isDialogShowing && mounted) {
+        Navigator.of(context).pop();
+        isDialogShowing = false;
+      }
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error updating task: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   // Helper method to launch a file URL with proper error handling
   Future<void> _launchFileUrl(String url) async {
     try {
@@ -1589,11 +1970,12 @@ class ProjectTaskListState extends State<ProjectTaskList> {
                           child: Table(
                             columnWidths: const {
                               0: FlexColumnWidth(0.7), // Checkbox
-                              1: FlexColumnWidth(3.5), // Title - adjusted width
-                              2: FlexColumnWidth(2.2), // Assigned To
-                              3: FlexColumnWidth(2.2), // Created By - new column
+                              1: FlexColumnWidth(3.0), // Title - adjusted width
+                              2: FlexColumnWidth(2.0), // Assigned To
+                              3: FlexColumnWidth(2.0), // Created By - new column
                               4: FlexColumnWidth(1.5), // Priority
                               5: FlexColumnWidth(1.8), // Due Date
+                              6: FlexColumnWidth(1.5), // Actions - new column
                             },
                             border: TableBorder(
                               horizontalInside: BorderSide(color: Colors.grey.shade300),
@@ -1610,6 +1992,7 @@ class ProjectTaskListState extends State<ProjectTaskList> {
                                   Padding(padding: EdgeInsets.all(12), child: Text('Created By', style: TextStyle(fontWeight: FontWeight.bold))),
                                   Padding(padding: EdgeInsets.all(12), child: Text('Priority', style: TextStyle(fontWeight: FontWeight.bold))),
                                   Padding(padding: EdgeInsets.all(12), child: Text('Due Date', style: TextStyle(fontWeight: FontWeight.bold))),
+                                  Padding(padding: EdgeInsets.all(12), child: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold))),
                                 ],
                               ),
                               // Data rows
@@ -1654,11 +2037,12 @@ class ProjectTaskListState extends State<ProjectTaskList> {
                           child: Table(
                             columnWidths: const {
                               0: FlexColumnWidth(0.7), // Checkbox
-                              1: FlexColumnWidth(3.5), // Title - adjusted width
-                              2: FlexColumnWidth(2.2), // Assigned To
-                              3: FlexColumnWidth(2.2), // Created By - new column
+                              1: FlexColumnWidth(3.0), // Title - adjusted width
+                              2: FlexColumnWidth(2.0), // Assigned To
+                              3: FlexColumnWidth(2.0), // Created By - new column
                               4: FlexColumnWidth(1.5), // Priority
                               5: FlexColumnWidth(1.8), // Due Date
+                              6: FlexColumnWidth(1.5), // Actions - new column
                             },
                             border: TableBorder(
                               horizontalInside: BorderSide(color: Colors.grey.shade300),
@@ -1675,6 +2059,7 @@ class ProjectTaskListState extends State<ProjectTaskList> {
                                   Padding(padding: EdgeInsets.all(12), child: Text('Created By', style: TextStyle(fontWeight: FontWeight.bold))),
                                   Padding(padding: EdgeInsets.all(12), child: Text('Priority', style: TextStyle(fontWeight: FontWeight.bold))),
                                   Padding(padding: EdgeInsets.all(12), child: Text('Due Date', style: TextStyle(fontWeight: FontWeight.bold))),
+                                  Padding(padding: EdgeInsets.all(12), child: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold))),
                                 ],
                               ),
                               // Data rows

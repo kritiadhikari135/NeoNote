@@ -4,7 +4,6 @@ import 'package:project/login_page.dart';
 import 'package:project/register_page.dart';
 import 'package:project/personalScreen/diary_page.dart';
 import 'package:project/services/local_storage.dart';
-import 'package:project/home_page.dart';
 import 'package:project/personalScreen/calender.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -20,15 +19,16 @@ class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
       case homeRoute:
-        return MaterialPageRoute(builder: (_) => HomePage());
+        // Use DashboardScreen directly instead of HomePage
+        return MaterialPageRoute(builder: (_) => const DashboardScreen());
       case loginRoute:
-        return MaterialPageRoute(builder: (_) => LoginPage());
+        return MaterialPageRoute(builder: (_) => const LoginPage());
       case registerRoute:
-        return MaterialPageRoute(builder: (_) => RegisterPage());
+        return MaterialPageRoute(builder: (_) => const RegisterPage());
       case dashboardRoute:
-        return MaterialPageRoute(builder: (_) => DashboardScreen());
+        return MaterialPageRoute(builder: (_) => const DashboardScreen());
       case diaryRoute:
-        return MaterialPageRoute(builder: (_) => DiaryPage());
+        return MaterialPageRoute(builder: (_) => const DiaryPage());
       case calendarRoute:
         return MaterialPageRoute(builder: (_) => const Calenderpage());
       default:

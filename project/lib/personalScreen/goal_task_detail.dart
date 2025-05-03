@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:project/models/goals_model.dart';
 import 'package:project/models/task_model.dart';
 import 'package:project/services/goal_task.dart';
+import 'package:project/services/goal_service.dart';
 import 'package:project/widgets/custom_scaffold.dart';
 import 'package:project/providers/notification_provider.dart';
 import 'package:provider/provider.dart';
@@ -39,6 +40,7 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   @override
   void initState() {
     super.initState();
+    // Load tasks only once when the screen is initialized
     _loadTasks();
     _searchController.addListener(_onSearchChanged);
 
@@ -101,6 +103,11 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
   void dispose() {
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
+
+    // We don't need to call Navigator.pop here as it's unsafe in dispose
+    // The goal is already updated in the widget.goal reference
+    // and will be returned when the back button is pressed
+
     super.dispose();
   }
 
@@ -119,6 +126,38 @@ class _GoalDetailScreenState extends State<GoalDetailScreen> {
       setState(() {
         _allTasks = tasks;
         _filterTasks(_searchController.text);
+
+        // Update the goal's tasks with the latest data
+        List<GoalTask> allTasks = [];
+        if (tasks["active"] != null) {
+          allTasks.addAll(tasks["active"]!.map((task) => GoalTask(
+                id: task.id,
+                title: task.title,
+                status: task.status,
+                priority: task.priority,
+                dueDate: task.dueDate != null ? DateTime.parse(task.dueDate) : null,
+                dateCreated: DateTime.parse(task.dateCreated),
+                goal: widget.goal.id,
+                hasReminder: task.hasReminder,
+                reminderDateTime: task.reminderDateTime,
+              )));
+        }
+        if (tasks["completed"] != null) {
+          allTasks.addAll(tasks["completed"]!.map((task) => GoalTask(
+                id: task.id,
+                title: task.title,
+                status: task.status,
+                priority: task.priority,
+                dueDate: task.dueDate != null ? DateTime.parse(task.dueDate) : null,
+                dateCreated: DateTime.parse(task.dateCreated),
+                goal: widget.goal.id,
+                hasReminder: task.hasReminder,
+                reminderDateTime: task.reminderDateTime,
+              )));
+        }
+
+        // Update the goal's tasks
+        widget.goal.tasks = allTasks;
 
         // If we have a highlighted task ID, check if it's in the loaded tasks
         if (_highlightedTaskId != null && _isHighlighting) {
@@ -1103,7 +1142,7 @@ Widget build(BuildContext context) {
                   IconButton(
                     icon: Icon(Icons.arrow_back, color: Colors.white),
                     onPressed: () {
-                      Navigator.pop(context); // Navigate back
+                      Navigator.pop(context, widget.goal); // Navigate back with updated goal
                     },
                   ),
                   // Goal Title

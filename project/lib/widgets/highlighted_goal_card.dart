@@ -1,5 +1,4 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/gestures.dart'; // For SystemMouseCursors
+import 'package:flutter/material.dart'; // Includes SystemMouseCursors
 import 'package:intl/intl.dart';
 import 'package:project/models/goals_model.dart';
 import 'package:project/personalScreen/goal_task_detail.dart';
@@ -12,13 +11,13 @@ class HighlightedGoalCard extends StatefulWidget {
   final bool shouldHighlight;
 
   const HighlightedGoalCard({
-    Key? key,
+    super.key,
     required this.goal,
     required this.onToggleCompletion,
     required this.onEdit,
     required this.onDelete,
     this.shouldHighlight = false,
-  }) : super(key: key);
+  });
 
   @override
   State<HighlightedGoalCard> createState() => _HighlightedGoalCardState();
@@ -123,25 +122,84 @@ class _HighlightedGoalCardState extends State<HighlightedGoalCard> with SingleTi
       child: MouseRegion(
         cursor: SystemMouseCursors.click, // Show hand cursor on hover
         child: GestureDetector(
-          onTap: () {
+          onTap: () async {
             // Navigate to the task list when the goal card is clicked
-            Navigator.push(
+            final updatedGoal = await Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (context) => GoalDetailScreen(goal: widget.goal),
               ),
             );
+
+            // If we received an updated goal from the detail page, update our goal
+            if (updatedGoal != null && updatedGoal is Goal) {
+              // Update the goal object with the latest data
+              widget.goal.tasks = updatedGoal.tasks;
+              // Force a rebuild of the widget
+              (context as Element).markNeedsBuild();
+            }
           },
           child: Column(
             children: [
               ListTile(
                 contentPadding: const EdgeInsets.all(16),
-                title: Text(
-                  widget.goal.title,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
+                title: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.goal.title,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Progress bar
+                    Container(
+                      height: 8,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Stack(
+                        children: [
+                          // Progress indicator
+                          FractionallySizedBox(
+                            widthFactor: widget.goal.completionPercentage() / 100,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Colors.blue.shade400,
+                                    Colors.blue.shade700,
+                                  ],
+                                  begin: Alignment.centerLeft,
+                                  end: Alignment.centerRight,
+                                ),
+                                borderRadius: BorderRadius.circular(4),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.blue.shade200.withAlpha(100),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${widget.goal.completionPercentage().toStringAsFixed(0)}% Complete',
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
                 ),
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -159,7 +217,7 @@ class _HighlightedGoalCardState extends State<HighlightedGoalCard> with SingleTi
                         ),
                       ],
                     ),
-                    if ((widget.goal.hasReminder) && widget.goal.reminderDateTime != null) ...[
+                    if (widget.goal.hasReminder && widget.goal.reminderDateTime != null) ...[
                       const SizedBox(height: 4),
                       Row(
                         children: [

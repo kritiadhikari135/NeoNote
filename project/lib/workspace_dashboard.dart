@@ -728,19 +728,7 @@ class _WorkspaceDashboardScreenState extends State<WorkspaceDashboardScreen> {
                             ],
                           ),
                         ),
-                        // Action button
-                        IconButton(
-                          icon: Icon(
-                            Icons.message_outlined,
-                            color: themeColor,
-                            size: 20,
-                          ),
-                          onPressed: () {
-                            // Message action
-                          },
-                          tooltip: 'Send message',
-                          splashRadius: 24,
-                        ),
+                        // Message icon removed as requested
                       ],
                     ),
                   ),

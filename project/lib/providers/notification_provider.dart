@@ -140,6 +140,46 @@ class NotificationProvider extends ChangeNotifier {
     }).length;
   }
 
+  // Get visible notifications (only those that are due now or in the past, or have no due date)
+  List<NotificationModel> get visibleNotifications {
+    final now = DateTime.now();
+    return _notifications.where((notification) {
+      // If notification has no due date, always show it
+      if (notification.dueDateTime == null) return true;
+
+      // Check if notification is due now or in the past
+      final dueDateTime = notification.dueDateTime!;
+
+      // Compare year, month, day, hour, and minute directly
+      bool isPastOrDueNow = false;
+
+      // If it's a past year
+      if (dueDateTime.year < now.year) {
+        isPastOrDueNow = true;
+      }
+      // If it's the same year but past month
+      else if (dueDateTime.year == now.year && dueDateTime.month < now.month) {
+        isPastOrDueNow = true;
+      }
+      // If it's the same year and month but past day
+      else if (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day < now.day) {
+        isPastOrDueNow = true;
+      }
+      // If it's the same day, compare hour and minute
+      else if (dueDateTime.year == now.year && dueDateTime.month == now.month && dueDateTime.day == now.day) {
+        // Calculate total minutes for easier comparison
+        int dueMinutes = (dueDateTime.hour * 60) + dueDateTime.minute;
+        int nowMinutes = (now.hour * 60) + now.minute;
+
+        // Show if due time is earlier than or equal to current time
+        isPastOrDueNow = dueMinutes <= nowMinutes;
+      }
+
+      // Only show notifications that are due now or in the past
+      return isPastOrDueNow;
+    }).toList();
+  }
+
   // Initialize the provider
   Future<void> initialize() async {
     try {

@@ -157,12 +157,26 @@ class _GoalPageState extends State<GoalPage> {
         }
       }
 
+      // Fetch the latest task information for each goal
+      List<Goal> updatedGoals = [];
+      for (var goal in goals) {
+        try {
+          // Fetch the latest goal data with updated task information
+          Goal updatedGoal = await GoalService.fetchGoalById(goal.id);
+          updatedGoals.add(updatedGoal);
+        } catch (e) {
+          // If fetching the updated goal fails, use the original goal
+          updatedGoals.add(goal);
+          print('Warning: Could not fetch updated task information for goal ${goal.id}: $e');
+        }
+      }
+
       if (mounted) {
         setState(() {
           _goals.clear();
-          _goals.addAll(goals);
+          _goals.addAll(updatedGoals);
           _filteredGoals.clear();
-          _filteredGoals.addAll(goals);
+          _filteredGoals.addAll(updatedGoals);
           _goals.sort((a, b) => b.createdAt.compareTo(a.createdAt)); // Sort by createdAt descending
           _isLoading = false;
           _isSaving = false; // Also reset saving state when loading completes
@@ -274,12 +288,14 @@ class _GoalPageState extends State<GoalPage> {
       await _loadGoals();
     } catch (e) {
       // Show error message if goal creation fails
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to add goal: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to add goal: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
 
       // Set loading state to false even if there's an error
       setState(() {
@@ -320,12 +336,11 @@ class _GoalPageState extends State<GoalPage> {
       );
 
       // If the goal was completed, remove any associated notification
-      if (goal.isCompleted) {
+      if (goal.isCompleted && mounted) {
         try {
           final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
           await notificationProvider.removeGoalReminderNotification(goal.id);
         } catch (e) {
-          print('Warning: Could not access NotificationProvider to remove notification: $e');
           // Continue even if notification removal fails
         }
       }
@@ -348,19 +363,21 @@ class _GoalPageState extends State<GoalPage> {
         _isSaving = false; // Hide saving indicator
       });
 
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Error'),
-          content: Text('Failed to update goal status: $e'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Error'),
+            content: Text('Failed to update goal status: $e'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
     }
   }
 
@@ -378,12 +395,14 @@ class _GoalPageState extends State<GoalPage> {
       await _loadGoals(); // This will set _isLoading to false when complete
     } catch (e) {
       // Show error message if goal editing fails
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to edit goal: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to edit goal: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -414,12 +433,14 @@ class _GoalPageState extends State<GoalPage> {
       });
     } catch (e) {
       // Show error message if goal deletion fails
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to delete goal: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete goal: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
 
       // Hide saving indicator
       setState(() {
